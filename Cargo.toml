@@ -3,3 +3,6 @@ name = "cairo-debugger"
 version = "0.1.0"
 edition = "2024"
 
+[dependencies]
+dap = "0.4.1-alpha1"
+tracing = "0.1"
