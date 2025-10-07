@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - release/*
+  pull_request:
+  merge_group:
+
+concurrency:
+  group: ${{ github.head_ref || github.run_id }}
+  cancel-in-progress: ${{ github.head_ref != 'main' }}
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test --release
+
+  check:
+    name: Check formatting, linter and unused dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo lint
+        env:
+          # Make sure CI fails on all warnings, including Clippy lints.
+          RUSTFLAGS: "-Dwarnings"
+      - run: cargo docs
+        env:
+          # Make sure CI fails on all warnings, including Clippy lints.
+          RUSTDOCFLAGS: "-Dwarnings"
+      - uses: taiki-e/install-action@cargo-machete
+      - run: cargo machete
