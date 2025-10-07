@@ -5,7 +5,6 @@ use dap::errors::ServerError;
 use dap::prelude::{Command, ResponseBody, Server};
 use dap::responses::{EvaluateResponse, ScopesResponse, ThreadsResponse, VariablesResponse};
 use dap::types::{Capabilities, Thread};
-
 use tracing::trace;
 
 // TODO: add vm, add handlers for requests.
@@ -122,10 +121,7 @@ impl CairoDebugger {
                 })),
                 Command::Threads => req.success(ResponseBody::Threads(ThreadsResponse {
                     // Return a single thread.
-                    threads: vec![Thread {
-                        id: 0,
-                        name: "".to_string(),
-                    }],
+                    threads: vec![Thread { id: 0, name: "".to_string() }],
                 })),
                 Command::Variables(_) => req.success(ResponseBody::Variables(VariablesResponse {
                     // Return no variables.
