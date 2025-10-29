@@ -3,5 +3,5 @@ use dap::errors::ServerError;
 
 // TODO: there will be no bin target in the future.
 fn main() -> Result<(), ServerError> {
-    CairoDebugger::default().run()
+    CairoDebugger::connect()?.run()
 }

@@ -1,5 +1,5 @@
 use std::io::{BufReader, BufWriter};
-use std::net::TcpListener;
+use std::net::{TcpListener, TcpStream};
 
 use dap::errors::ServerError;
 use dap::prelude::{Command, ResponseBody, Server};
@@ -8,23 +8,25 @@ use dap::types::{Capabilities, Thread};
 use tracing::trace;
 
 // TODO: add vm, add handlers for requests.
-#[derive(Default)]
-pub struct CairoDebugger {}
+pub struct CairoDebugger {
+    server: Server<TcpStream, TcpStream>,
+}
 
 impl CairoDebugger {
-    pub fn run(&mut self) -> Result<(), ServerError> {
+    pub fn connect() -> Result<Self, ServerError> {
         let tcp_listener = TcpListener::bind("127.0.0.1:0").map_err(ServerError::IoError)?;
         let os_assigned_port = tcp_listener.local_addr().unwrap().port();
         // Print it so that the client can read it.
         println!("\nDEBUGGER PORT: {os_assigned_port}");
 
         let (stream, _client_addr) = tcp_listener.accept().map_err(ServerError::IoError)?;
+        let input = BufReader::new(stream.try_clone().unwrap());
+        let output = BufWriter::new(stream);
+        Ok(Self { server: Server::new(input, output) })
+    }
 
-        let input = BufReader::new(&stream);
-        let output = BufWriter::new(&stream);
-        let mut server = Server::new(input, output);
-
-        while let Some(req) = server.poll_request()? {
+    pub fn run(&mut self) -> Result<(), ServerError> {
+        while let Some(req) = self.server.poll_request()? {
             let response = match &req.command {
                 // We have not yet decided if we want to support these.
                 Command::BreakpointLocations(_)
@@ -133,7 +135,7 @@ impl CairoDebugger {
                 }
             };
 
-            server.respond(response)?;
+            self.server.respond(response)?;
         }
 
         Ok(())
