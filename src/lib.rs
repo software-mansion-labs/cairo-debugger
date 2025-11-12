@@ -155,6 +155,8 @@ fn handle_request(request: &Request) -> ServerResponse {
                 stack_frames: vec![StackFrame {
                     id: 1,
                     name: "test".to_string(),
+                    // Replace it with the actual source path.
+                    // Otherwise, the debugger will crush after returning this response.
                     source: Some(Source { name: None, path: None, ..Default::default() }),
                     line: 1,
                     column: 1,
