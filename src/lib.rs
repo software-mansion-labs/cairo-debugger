@@ -137,6 +137,7 @@ fn handle_request(request: &Request) -> ServerResponse {
                     // For now accept every breakpoint as valid
                     response_bps.push(Breakpoint {
                         verified: true,
+                        source: Some(args.source.clone()),
                         line: Some(bp.line),
                         ..Default::default()
                     });
