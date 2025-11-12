@@ -39,11 +39,11 @@ impl CairoDebugger {
     pub fn run(&mut self) -> Result<(), ServerError> {
         while let Some(req) = self.server.poll_request()? {
             match handle_request(&req) {
-                ServerResponse::Success(body) => self.server.respond(req.clone().success(body))?,
-                ServerResponse::Error(msg) => self.server.respond(req.clone().error(&msg))?,
+                ServerResponse::Success(body) => self.server.respond(req.success(body))?,
+                ServerResponse::Error(msg) => self.server.respond(req.error(&msg))?,
                 ServerResponse::Event(event) => self.server.send_event(event)?,
                 ServerResponse::SuccessThenEvent(body, event) => {
-                    self.server.respond(req.clone().success(body))?;
+                    self.server.respond(req.success(body))?;
                     self.server.send_event(event)?;
                 }
             }
