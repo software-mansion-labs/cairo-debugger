@@ -5,5 +5,6 @@ edition = "2024"
 
 [dependencies]
 dap = { path = "/Users/ddoktorski/Workplace/dap-rs/dap" }
+cairo-vm = { path = "/Users/ddoktorski/Workplace/cairo-vm/vm" }
 tracing = "0.1"
 anyhow = "1.0.100"
