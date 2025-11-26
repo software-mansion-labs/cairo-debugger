@@ -149,8 +149,8 @@ impl CairoDebugger {
                             name: "test".to_string(),
                             // Replace it with the actual source path.
                             // Otherwise, the debugger will crush after returning this response.
-                            source: Some(Source { name: None, path: Some("/Users/ddoktorski/Workplace/experiments/forge_init/debugger_testing/src/lib.cairo".to_string()), ..Default::default() }),
-                            line: 23,
+                            source: Some(Source { name: None, path: None, ..Default::default() }),
+                            line: 1,
                             column: 1,
                             ..Default::default()
                         }],

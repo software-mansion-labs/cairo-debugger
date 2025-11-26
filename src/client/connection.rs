@@ -83,7 +83,6 @@ fn run_writer_thread(
 ) {
     thread::spawn(move || {
         while let Ok(msg) = outbound_rx.recv() {
-            println!("RESPONSE MSG: {:?}", msg);
             match msg {
                 Sendable::Response(response) => {
                     server_writer.respond(response).expect("Failed to send response")
