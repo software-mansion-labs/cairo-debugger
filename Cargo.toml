@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-dap = { path = "/Users/ddoktorski/Workplace/dap-rs/dap" }
-cairo-vm = { path = "/Users/ddoktorski/Workplace/cairo-vm/vm" }
+dap = { git = "https://github.com/software-mansion-labs/dap-rs", branch = "debugger-poc" }
+cairo-vm = { git = "https://github.com/software-mansion-labs/cairo-vm", branch = "debugger-poc" }
 tracing = "0.1"
 anyhow = "1.0.100"

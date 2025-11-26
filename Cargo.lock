@@ -97,6 +97,7 @@ dependencies = [
 [[package]]
 name = "cairo-vm"
 version = "2.5.0"
+source = "git+https://github.com/software-mansion-labs/cairo-vm?branch=debugger-poc#da737295a360fa949f328ac9954cad0492491b92"
 dependencies = [
  "anyhow",
  "bincode",
@@ -178,6 +179,7 @@ dependencies = [
 [[package]]
 name = "dap"
 version = "0.4.1-alpha1"
+source = "git+https://github.com/software-mansion-labs/dap-rs?branch=debugger-poc#4440a6fa4ffd26f88f1191ee2371a482fde2a539"
 dependencies = [
  "serde",
  "serde_json",
