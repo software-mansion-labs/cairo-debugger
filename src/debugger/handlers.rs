@@ -48,13 +48,13 @@ impl CairoDebugger {
             | Command::WriteMemory(_) => {
                 // If we receive these with current capabilities, it is the client's fault.
                 let msg = format!("Received an unsupported request: {request:?}");
-                self.connection.send_error(request, msg)?;
+                self.connection.send_error(request, &msg)?;
                 bail!("Unsupported request");
             }
 
             // It makes no sense to send `attach` in the current architecture.
             Command::Attach(_) => {
-                self.connection.send_error(request, "Attach is not supported".into())?;
+                self.connection.send_error(request, "Attach is not supported")?;
                 bail!("Unsupported request");
             }
 
@@ -88,17 +88,16 @@ impl CairoDebugger {
             // Nonetheless, if we receive these with current capabilities,
             // it is the client's fault.
             Command::ReverseContinue(_) => {
-                self.connection
-                    .send_error(request, "Reverse continue is not yet supported".into())?;
+                self.connection.send_error(request, "Reverse continue is not yet supported")?;
                 bail!("Reverse continue is not yet supported");
             }
             Command::StepBack(_) => {
-                self.connection.send_error(request, "Step back is not yet supported".into())?;
+                self.connection.send_error(request, "Step back is not yet supported")?;
                 bail!("Step back is not yet supported");
             }
             Command::SetFunctionBreakpoints(_) => {
                 self.connection
-                    .send_error(request, "Set function breakpoints is not yet supported".into())?;
+                    .send_error(request, "Set function breakpoints is not yet supported")?;
                 bail!("Set function breakpoints is not yet supported");
             }
 

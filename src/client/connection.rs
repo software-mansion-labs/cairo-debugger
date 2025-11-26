@@ -56,9 +56,9 @@ impl Connection {
             .context("Sending success response to outbound channel failed")
     }
 
-    pub fn send_error(&self, request: Request, msg: String) -> Result<()> {
+    pub fn send_error(&self, request: Request, msg: &str) -> Result<()> {
         self.outbound_tx
-            .send(Sendable::Response(request.error(&msg)))
+            .send(Sendable::Response(request.error(msg)))
             .context("Sending error response to outbound channel failed")
     }
 }
@@ -68,14 +68,10 @@ fn run_reader_thread(
     inbound_tx: mpsc::Sender<Request>,
 ) {
     thread::spawn(move || {
-        while let Ok(request) = server_reader.poll_request() {
-            match request {
-                Some(request) => {
-                    if inbound_tx.send(request).is_err() {
-                        // TODO: Add error tracing
-                    }
-                }
-                None => continue,
+        while let Ok(Some(request)) = server_reader.poll_request() {
+            if inbound_tx.send(request).is_err() {
+                // TODO: Add error tracing
+                break;
             }
         }
     });

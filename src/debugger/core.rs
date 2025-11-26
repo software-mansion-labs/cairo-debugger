@@ -37,13 +37,13 @@ impl CairoDebugger {
         if let Some(request) = self.connection.try_next_request()
             && let HandleResult::Trigger(NextAction::Stop) = self.handle_request(request)?
         {
-            self.enter_trap_loop()?;
+            self.process_until_resume()?;
         }
 
         Ok(())
     }
 
-    fn enter_trap_loop(&self) -> Result<()> {
+    fn process_until_resume(&self) -> Result<()> {
         loop {
             let request =
                 self.connection.next_request().ok_or_else(|| anyhow!("Connection closed"))?;
@@ -52,9 +52,10 @@ impl CairoDebugger {
                 HandleResult::Trigger(NextAction::FinishInit) => {
                     bail!("Unexpected request received during execution");
                 }
-                _ => continue,
+                HandleResult::Handled | HandleResult::Trigger(NextAction::Stop) => {}
             }
         }
+
         Ok(())
     }
 }
