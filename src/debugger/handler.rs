@@ -12,6 +12,11 @@ use crate::CairoDebugger;
 
 pub enum HandleResult {
     Handled,
+    Trigger(NextAction),
+}
+
+pub enum NextAction {
+    FinishInit,
 }
 
 impl CairoDebugger {
@@ -86,7 +91,7 @@ impl CairoDebugger {
             Command::ConfigurationDone => {
                 trace!("Configuration done");
                 self.connection.send_success(request, ResponseBody::ConfigurationDone)?;
-                Ok(HandleResult::Handled)
+                Ok(HandleResult::Trigger(NextAction::FinishInit))
             }
             Command::Continue(_) => {
                 todo!()
@@ -199,7 +204,6 @@ impl CairoDebugger {
                 Ok(HandleResult::Handled)
             }
             Command::Scopes(_) => {
-                // Return no scopes.
                 // Return no scopes.
                 self.connection.send_success(
                     request,
