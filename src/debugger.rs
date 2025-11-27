@@ -1,11 +1,12 @@
 use anyhow::Result;
+use cairo_vm::vm::vm_core::VirtualMachine;
 use tracing::debug;
 
 use crate::connection::Connection;
 use crate::debugger::handler::{HandleResult, NextAction};
 
 mod handler;
-mod log;
+mod vm;
 
 pub struct CairoDebugger {
     connection: Connection,
@@ -33,15 +34,11 @@ impl CairoDebugger {
         Ok(())
     }
 
-    pub fn run(&self) -> Result<()> {
-        while let Ok(req) = self.connection.next_request() {
-            self.handle_request(req)?;
+    fn sync(&self, _vm: &VirtualMachine) -> Result<()> {
+        if let Some(request) = self.connection.try_next_request()? {
+            self.handle_request(request)?;
         }
 
         Ok(())
-    }
-
-    pub fn init_logging() -> Option<impl Drop> {
-        log::init_logging()
     }
 }
