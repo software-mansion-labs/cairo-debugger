@@ -1,6 +1,7 @@
 use std::io::{BufReader, BufWriter};
 use std::net::{TcpListener, TcpStream};
 
+use connection::Connection;
 use dap::errors::ServerError;
 use dap::events::{Event, StoppedEventBody};
 use dap::prelude::{Command, Request, ResponseBody, Server};
@@ -11,9 +12,11 @@ use dap::responses::{
 use dap::types::{Breakpoint, Capabilities, Source, StackFrame, StoppedEventReason, Thread};
 use tracing::trace;
 
+mod connection;
+
 // TODO: add vm, add handlers for requests.
 pub struct CairoDebugger {
-    server: Server<TcpStream, TcpStream>,
+    connection: Connection,
 }
 
 enum ServerResponse {
@@ -25,26 +28,19 @@ enum ServerResponse {
 
 impl CairoDebugger {
     pub fn connect() -> Result<Self, ServerError> {
-        let tcp_listener = TcpListener::bind("127.0.0.1:0").map_err(ServerError::IoError)?;
-        let os_assigned_port = tcp_listener.local_addr().unwrap().port();
-        // Print it so that the client can read it.
-        println!("\nDEBUGGER PORT: {os_assigned_port}");
-
-        let (stream, _client_addr) = tcp_listener.accept().map_err(ServerError::IoError)?;
-        let input = BufReader::new(stream.try_clone().unwrap());
-        let output = BufWriter::new(stream);
-        Ok(Self { server: Server::new(input, output) })
+        let connection = Connection::new()?;
+        Ok(Self { connection })
     }
 
     pub fn run(&mut self) -> Result<(), ServerError> {
-        while let Some(req) = self.server.poll_request()? {
+        while let Some(req) = self.connection.next_request() {
             match handle_request(&req) {
-                ServerResponse::Success(body) => self.server.respond(req.success(body))?,
-                ServerResponse::Error(msg) => self.server.respond(req.error(&msg))?,
-                ServerResponse::Event(event) => self.server.send_event(event)?,
+                ServerResponse::Success(body) => self.connection.send_success(req, body)?,
+                ServerResponse::Error(msg) => self.connection.send_error(req, &msg)?,
+                ServerResponse::Event(event) => self.connection.send_event(event)?,
                 ServerResponse::SuccessThenEvent(body, event) => {
-                    self.server.respond(req.success(body))?;
-                    self.server.send_event(event)?;
+                    self.connection.send_success(req, body)?;
+                    self.connection.send_event(event)?;
                 }
             }
         }
