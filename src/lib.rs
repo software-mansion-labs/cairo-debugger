@@ -30,7 +30,7 @@ impl CairoDebugger {
     }
 
     pub fn run(&mut self) -> Result<()> {
-        while let Some(req) = self.connection.next_request() {
+        while let Ok(req) = self.connection.next_request() {
             match handle_request(&req) {
                 ServerResponse::Success(body) => self.connection.send_success(req, body)?,
                 ServerResponse::Error(msg) => self.connection.send_error(req, &msg)?,

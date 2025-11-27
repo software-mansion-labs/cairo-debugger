@@ -37,8 +37,8 @@ impl Connection {
         Ok(Self { inbound_rx, outbound_tx })
     }
 
-    pub fn next_request(&self) -> Option<Request> {
-        self.inbound_rx.recv().ok()
+    pub fn next_request(&self) -> Result<Request> {
+        self.inbound_rx.recv().context("Connection close")
     }
 
     pub fn send_event(&self, event: Event) -> Result<()> {
