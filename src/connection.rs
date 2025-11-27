@@ -31,8 +31,8 @@ impl Connection {
         let (inbound_tx, inbound_rx) = mpsc::channel::<Request>();
         let (outbound_tx, outbound_rx) = mpsc::channel::<Sendable>();
 
-        run_reader_thread(server_reader, inbound_tx);
-        run_writer_thread(server_writer, outbound_rx);
+        spawn_reader_thread(server_reader, inbound_tx);
+        spawn_writer_thread(server_writer, outbound_rx);
 
         Ok(Self { inbound_rx, outbound_tx })
     }
@@ -60,7 +60,7 @@ impl Connection {
     }
 }
 
-fn run_reader_thread(
+fn spawn_reader_thread(
     mut server_reader: ServerReader<TcpStream>,
     inbound_tx: mpsc::Sender<Request>,
 ) {
@@ -74,7 +74,7 @@ fn run_reader_thread(
     });
 }
 
-fn run_writer_thread(
+fn spawn_writer_thread(
     mut server_writer: ServerWriter<TcpStream>,
     outbound_rx: mpsc::Receiver<Sendable>,
 ) {
