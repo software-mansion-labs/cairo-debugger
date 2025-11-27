@@ -2,8 +2,8 @@ use anyhow::{Result, bail};
 use dap::events::{Event, StoppedEventBody};
 use dap::prelude::{Command, Request, ResponseBody};
 use dap::responses::{
-    EvaluateResponse, ScopesResponse, SetBreakpointsResponse, StackTraceResponse, ThreadsResponse,
-    VariablesResponse,
+    ContinueResponse, EvaluateResponse, ScopesResponse, SetBreakpointsResponse, StackTraceResponse,
+    ThreadsResponse, VariablesResponse,
 };
 use dap::types::{Breakpoint, Capabilities, Source, StackFrame, StoppedEventReason, Thread};
 use tracing::trace;
@@ -16,6 +16,8 @@ pub enum HandleResult {
 }
 
 pub enum NextAction {
+    Resume,
+    Stop,
     FinishInit,
 }
 
@@ -94,7 +96,11 @@ impl CairoDebugger {
                 Ok(HandleResult::Trigger(NextAction::FinishInit))
             }
             Command::Continue(_) => {
-                todo!()
+                self.connection.send_success(
+                    request,
+                    ResponseBody::Continue(ContinueResponse { all_threads_continued: Some(true) }),
+                )?;
+                Ok(HandleResult::Trigger(NextAction::Resume))
             }
             Command::Launch(_) => {
                 // Start running the Cairo program here.
@@ -115,7 +121,7 @@ impl CairoDebugger {
                     hit_breakpoint_ids: None,
                 }))?;
                 self.connection.send_success(request, ResponseBody::Pause)?;
-                Ok(HandleResult::Handled)
+                Ok(HandleResult::Trigger(NextAction::Stop))
             }
             Command::SetBreakpoints(args) => {
                 let mut response_bps = Vec::new();
