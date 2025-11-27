@@ -41,10 +41,6 @@ impl Connection {
         self.inbound_rx.recv().ok()
     }
 
-    pub fn try_next_request(&self) -> Option<Request> {
-        self.inbound_rx.try_recv().ok()
-    }
-
     pub fn send_event(&self, event: Event) -> Result<()> {
         self.outbound_tx
             .send(Sendable::Event(event))

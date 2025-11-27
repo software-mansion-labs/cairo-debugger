@@ -1,10 +1,7 @@
-use std::io::{BufReader, BufWriter};
-use std::net::{TcpListener, TcpStream};
-
+use anyhow::Result;
 use connection::Connection;
-use dap::errors::ServerError;
 use dap::events::{Event, StoppedEventBody};
-use dap::prelude::{Command, Request, ResponseBody, Server};
+use dap::prelude::{Command, Request, ResponseBody};
 use dap::responses::{
     EvaluateResponse, ScopesResponse, SetBreakpointsResponse, StackTraceResponse, ThreadsResponse,
     VariablesResponse,
@@ -27,12 +24,12 @@ enum ServerResponse {
 }
 
 impl CairoDebugger {
-    pub fn connect() -> Result<Self, ServerError> {
+    pub fn connect() -> Result<Self> {
         let connection = Connection::new()?;
         Ok(Self { connection })
     }
 
-    pub fn run(&mut self) -> Result<(), ServerError> {
+    pub fn run(&mut self) -> Result<()> {
         while let Some(req) = self.connection.next_request() {
             match handle_request(&req) {
                 ServerResponse::Success(body) => self.connection.send_success(req, body)?,
