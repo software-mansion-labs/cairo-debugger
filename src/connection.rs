@@ -2,6 +2,7 @@ use std::io::{BufReader, BufWriter};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc;
 use std::thread;
+use std::thread::JoinHandle;
 
 use anyhow::Context;
 use anyhow::Result;
@@ -13,6 +14,12 @@ use dap::server::{ServerReader, ServerWriter};
 pub struct Connection {
     inbound_rx: mpsc::Receiver<Request>,
     outbound_tx: mpsc::Sender<Sendable>,
+    io_threads: IoThreads,
+}
+
+struct IoThreads {
+    pub reader: Option<JoinHandle<()>>,
+    pub writer: Option<JoinHandle<()>>,
 }
 
 impl Connection {
@@ -31,10 +38,9 @@ impl Connection {
         let (inbound_tx, inbound_rx) = mpsc::channel::<Request>();
         let (outbound_tx, outbound_rx) = mpsc::channel::<Sendable>();
 
-        spawn_reader_thread(server_reader, inbound_tx);
-        spawn_writer_thread(server_writer, outbound_rx);
+        let io_threads = IoThreads::spawn(server_reader, server_writer, inbound_tx, outbound_rx);
 
-        Ok(Self { inbound_rx, outbound_tx })
+        Ok(Self { inbound_rx, outbound_tx, io_threads })
     }
 
     pub fn next_request(&self) -> Result<Request> {
@@ -60,10 +66,31 @@ impl Connection {
     }
 }
 
+impl IoThreads {
+    fn spawn(
+        server_reader: ServerReader<TcpStream>,
+        server_writer: ServerWriter<TcpStream>,
+        inbound_tx: mpsc::Sender<Request>,
+        outbound_rx: mpsc::Receiver<Sendable>,
+    ) -> Self {
+        Self {
+            reader: Some(spawn_reader_thread(server_reader, inbound_tx)),
+            writer: Some(spawn_writer_thread(server_writer, outbound_rx)),
+        }
+    }
+}
+
+impl Drop for Connection {
+    fn drop(&mut self) {
+        self.io_threads.reader.take().map(|h| h.join());
+        self.io_threads.writer.take().map(|h| h.join());
+    }
+}
+
 fn spawn_reader_thread(
     mut server_reader: ServerReader<TcpStream>,
     inbound_tx: mpsc::Sender<Request>,
-) {
+) -> JoinHandle<()> {
     thread::spawn(move || {
         while let Ok(Some(request)) = server_reader.poll_request() {
             if inbound_tx.send(request).is_err() {
@@ -71,13 +98,13 @@ fn spawn_reader_thread(
                 break;
             }
         }
-    });
+    })
 }
 
 fn spawn_writer_thread(
     mut server_writer: ServerWriter<TcpStream>,
     outbound_rx: mpsc::Receiver<Sendable>,
-) {
+) -> JoinHandle<()> {
     thread::spawn(move || {
         while let Ok(msg) = outbound_rx.recv() {
             match msg {
@@ -90,5 +117,5 @@ fn spawn_writer_thread(
                 Sendable::ReverseRequest(_) => unreachable!(),
             }
         }
-    });
+    })
 }
