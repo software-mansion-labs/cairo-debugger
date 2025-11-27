@@ -22,9 +22,9 @@ impl CairoDebugger {
         Ok(Self { connection })
     }
 
-    pub fn run(&mut self) -> anyhow::Result<()> {
+    pub fn run(&self) -> anyhow::Result<()> {
         while let Ok(req) = self.connection.next_request() {
-            match handler::handle_request(&req) {
+            match self.handle_request(&req) {
                 ServerResponse::Success(body) => self.connection.send_success(req, body)?,
                 ServerResponse::Error(msg) => self.connection.send_error(req, &msg)?,
                 ServerResponse::Event(event) => self.connection.send_event(event)?,
