@@ -1,6 +1,7 @@
 use anyhow::Result;
 
 use crate::connection::Connection;
+use crate::debugger::handler::{HandleResult, NextAction};
 
 mod handler;
 
@@ -9,9 +10,23 @@ pub struct CairoDebugger {
 }
 
 impl CairoDebugger {
-    pub fn connect() -> Result<Self> {
+    pub fn connect_and_initialize() -> Result<Self> {
         let connection = Connection::new()?;
-        Ok(Self { connection })
+        let debugger = Self { connection };
+        debugger.initialize()?;
+
+        Ok(debugger)
+    }
+
+    fn initialize(&self) -> Result<()> {
+        loop {
+            let request = self.connection.next_request()?;
+            if let HandleResult::Trigger(NextAction::FinishInit) = self.handle_request(request)? {
+                break;
+            }
+        }
+
+        Ok(())
     }
 
     pub fn run(&self) -> Result<()> {
