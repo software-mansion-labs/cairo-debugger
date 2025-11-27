@@ -1,11 +1,12 @@
 use std::io::{BufReader, BufWriter};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc;
+use std::sync::mpsc::TryRecvError;
 use std::thread;
 use std::thread::JoinHandle;
 
-use anyhow::Context;
 use anyhow::Result;
+use anyhow::{Context, bail};
 use dap::base_message::Sendable;
 use dap::errors::ServerError;
 use dap::prelude::{Event, Request, ResponseBody, Server};
@@ -45,6 +46,13 @@ impl Connection {
 
     pub fn next_request(&self) -> Result<Request> {
         self.inbound_rx.recv().context("Inbound connection closed")
+    }
+
+    pub fn try_next_request(&self) -> Result<Option<Request>> {
+        self.inbound_rx.try_recv().map(Some).or_else(|e| match e {
+            TryRecvError::Empty => Ok(None),
+            TryRecvError::Disconnected => bail!("Inbound connection closed"),
+        })
     }
 
     pub fn send_event(&self, event: Event) -> Result<()> {
