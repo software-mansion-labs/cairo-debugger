@@ -14,6 +14,9 @@ use dap::server::{ServerReader, ServerWriter};
 pub struct Connection {
     inbound_rx: mpsc::Receiver<Request>,
     outbound_tx: mpsc::Sender<Sendable>,
+
+    // NOTE: The order matters here.
+    // I/O threads must be dropped after the channels.
     _io_threads: IoThreads,
 }
 
