@@ -14,7 +14,7 @@ use dap::server::{ServerReader, ServerWriter};
 pub struct Connection {
     inbound_rx: mpsc::Receiver<Request>,
     outbound_tx: mpsc::Sender<Sendable>,
-    io_threads: IoThreads,
+    _io_threads: IoThreads,
 }
 
 struct IoThreads {
@@ -38,9 +38,11 @@ impl Connection {
         let (inbound_tx, inbound_rx) = mpsc::channel::<Request>();
         let (outbound_tx, outbound_rx) = mpsc::channel::<Sendable>();
 
-        let io_threads = IoThreads::spawn(server_reader, server_writer, inbound_tx, outbound_rx);
-
-        Ok(Self { inbound_rx, outbound_tx, io_threads })
+        Ok(Self {
+            inbound_rx,
+            outbound_tx,
+            _io_threads: IoThreads::spawn(server_reader, server_writer, inbound_tx, outbound_rx),
+        })
     }
 
     pub fn next_request(&self) -> Result<Request> {
@@ -80,10 +82,10 @@ impl IoThreads {
     }
 }
 
-impl Drop for Connection {
+impl Drop for IoThreads {
     fn drop(&mut self) {
-        self.io_threads.reader.take().map(|h| h.join());
-        self.io_threads.writer.take().map(|h| h.join());
+        self.reader.take().map(|h| h.join());
+        self.writer.take().map(|h| h.join());
     }
 }
 
