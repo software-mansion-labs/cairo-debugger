@@ -1,5 +1,7 @@
 use anyhow::{Result, bail};
 use cairo_vm::vm::vm_core::VirtualMachine;
+use dap::events::ExitedEventBody;
+use dap::prelude::Event::{Exited, Terminated};
 
 use crate::connection::Connection;
 use crate::debugger::handler::{HandleResult, NextAction};
@@ -59,5 +61,14 @@ impl CairoDebugger {
 
     pub fn init_logging() -> Option<impl Drop> {
         log::init_logging()
+    }
+}
+
+impl Drop for CairoDebugger {
+    fn drop(&mut self) {
+        // TODO: Add error tracing
+        // TODO: Send correct exit code
+        self.connection.send_event(Terminated(None)).ok();
+        self.connection.send_event(Exited(ExitedEventBody { exit_code: 0 })).ok();
     }
 }
