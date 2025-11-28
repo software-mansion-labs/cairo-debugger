@@ -4,6 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-dap = { git = "https://github.com/software-mansion-labs/dap-rs", branch = "debugger-poc" }
+dap = { git = "https://github.com/software-mansion-labs/dap-rs", rev = "4440a6f" }
 tracing = "0.1"
 anyhow = "1.0"

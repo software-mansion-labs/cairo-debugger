@@ -20,7 +20,7 @@ dependencies = [
 [[package]]
 name = "dap"
 version = "0.4.1-alpha1"
-source = "git+https://github.com/software-mansion-labs/dap-rs?branch=debugger-poc#4440a6fa4ffd26f88f1191ee2371a482fde2a539"
+source = "git+https://github.com/software-mansion-labs/dap-rs?rev=4440a6f#4440a6fa4ffd26f88f1191ee2371a482fde2a539"
 dependencies = [
  "serde",
  "serde_json",

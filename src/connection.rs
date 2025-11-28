@@ -15,14 +15,9 @@ pub struct Connection {
     inbound_rx: mpsc::Receiver<Request>,
     outbound_tx: mpsc::Sender<Sendable>,
 
-    // NOTE: The order matters here.
+    // NOTE: The order of members matters here.
     // I/O threads must be dropped after the channels.
     _io_threads: IoThreads,
-}
-
-struct IoThreads {
-    pub reader: Option<JoinHandle<()>>,
-    pub writer: Option<JoinHandle<()>>,
 }
 
 impl Connection {
@@ -49,7 +44,7 @@ impl Connection {
     }
 
     pub fn next_request(&self) -> Result<Request> {
-        self.inbound_rx.recv().context("Connection close")
+        self.inbound_rx.recv().context("Inbound connection closed")
     }
 
     pub fn send_event(&self, event: Event) -> Result<()> {
@@ -69,6 +64,11 @@ impl Connection {
             .send(Sendable::Response(request.error(msg)))
             .context("Sending error response to outbound channel failed")
     }
+}
+
+struct IoThreads {
+    pub reader: Option<JoinHandle<()>>,
+    pub writer: Option<JoinHandle<()>>,
 }
 
 impl IoThreads {
@@ -119,7 +119,7 @@ fn spawn_writer_thread(
                 Sendable::Event(event) => {
                     server_writer.send_event(event).expect("Failed to send event")
                 }
-                Sendable::ReverseRequest(_) => unreachable!(),
+                Sendable::ReverseRequest(_) => unreachable!("Reverse requests are not supported"),
             }
         }
     })
