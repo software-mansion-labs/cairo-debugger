@@ -1,5 +1,7 @@
-use anyhow::Result;
+use anyhow::{Result, bail};
 use cairo_vm::vm::vm_core::VirtualMachine;
+use dap::events::ExitedEventBody;
+use dap::prelude::Event::{Exited, Terminated};
 
 use crate::connection::Connection;
 use crate::debugger::handler::{HandleResult, NextAction};
@@ -33,8 +35,25 @@ impl CairoDebugger {
     }
 
     fn sync(&self, _vm: &VirtualMachine) -> Result<()> {
-        if let Some(request) = self.connection.try_next_request()? {
-            self.handle_request(request)?;
+        if let Some(request) = self.connection.try_next_request()?
+            && let HandleResult::Trigger(NextAction::Stop) = self.handle_request(request)?
+        {
+            self.process_until_resume()?;
+        }
+
+        Ok(())
+    }
+
+    fn process_until_resume(&self) -> Result<()> {
+        loop {
+            let request = self.connection.next_request()?;
+            match self.handle_request(request)? {
+                HandleResult::Trigger(NextAction::Resume) => break,
+                HandleResult::Trigger(NextAction::FinishInit) => {
+                    bail!("Unexpected request received during execution");
+                }
+                HandleResult::Handled | HandleResult::Trigger(NextAction::Stop) => {}
+            }
         }
 
         Ok(())
@@ -42,5 +61,14 @@ impl CairoDebugger {
 
     pub fn init_logging() -> Option<impl Drop> {
         log::init_logging()
+    }
+}
+
+impl Drop for CairoDebugger {
+    fn drop(&mut self) {
+        // TODO: Add error tracing
+        // TODO: Send correct exit code
+        self.connection.send_event(Terminated(None)).ok();
+        self.connection.send_event(Exited(ExitedEventBody { exit_code: 0 })).ok();
     }
 }
