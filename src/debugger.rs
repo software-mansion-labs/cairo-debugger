@@ -5,6 +5,7 @@ use crate::connection::Connection;
 use crate::debugger::handler::{HandleResult, NextAction};
 
 mod handler;
+mod log;
 
 pub struct CairoDebugger {
     connection: Connection,
@@ -38,5 +39,9 @@ impl CairoDebugger {
         }
 
         Ok(())
+    }
+
+    pub fn init_logging() -> Option<impl Drop> {
+        log::init_logging()
     }
 }
