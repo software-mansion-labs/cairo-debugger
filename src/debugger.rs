@@ -1,4 +1,5 @@
 use anyhow::Result;
+use tracing::debug;
 
 use crate::connection::Connection;
 use crate::debugger::handler::{HandleResult, NextAction};
@@ -22,6 +23,7 @@ impl CairoDebugger {
         loop {
             let request = self.connection.next_request()?;
             if let HandleResult::Trigger(NextAction::FinishInit) = self.handle_request(request)? {
+                debug!("Initialization finished");
                 break;
             }
         }
