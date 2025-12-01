@@ -5,6 +5,6 @@ edition = "2024"
 
 [dependencies]
 dap = { git = "https://github.com/software-mansion-labs/dap-rs", rev = "4440a6f" }
-cairo-vm = { git = "https://github.com/software-mansion-labs/cairo-vm", rev = "da73729" }
+cairo-vm = { git = "https://github.com/software-mansion-labs/cairo-vm", rev = "aa83d6e" }
 tracing = "0.1"
 anyhow = "1.0"
