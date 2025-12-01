@@ -34,7 +34,7 @@ impl CairoDebugger {
         Ok(())
     }
 
-    fn sync(&self, _vm: &VirtualMachine) -> Result<()> {
+    fn sync_with_vm(&self, _vm: &VirtualMachine) -> Result<()> {
         if let Some(request) = self.connection.try_next_request()? {
             self.handle_request(request)?;
         }
