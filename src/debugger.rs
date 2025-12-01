@@ -21,6 +21,7 @@ impl CairoDebugger {
 
     fn initialize(&self) -> Result<()> {
         loop {
+            // TODO(#35)
             let request = self.connection.next_request()?;
             if let HandleResult::Trigger(NextAction::FinishInit) = self.handle_request(request)? {
                 debug!("Initialization finished");
