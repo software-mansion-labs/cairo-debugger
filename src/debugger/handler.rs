@@ -15,7 +15,7 @@ pub enum HandleResult {
 }
 
 impl CairoDebugger {
-    pub(crate) fn handle_request(&self, request: Request) -> Result<HandleResult> {
+    pub fn handle_request(&self, request: Request) -> Result<HandleResult> {
         match &request.command {
             // We have not yet decided if we want to support these.
             Command::BreakpointLocations(_)
