@@ -6,6 +6,6 @@ use crate::CairoDebugger;
 impl RunnerPreStepHook for CairoDebugger {
     fn execute(&self, vm: &VirtualMachine) {
         // TODO: Improve error handling
-        self.sync(vm).expect("Debugger failed");
+        self.sync_with_vm(vm).expect("Debugger failed");
     }
 }
