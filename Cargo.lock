@@ -97,7 +97,7 @@ dependencies = [
 [[package]]
 name = "cairo-vm"
 version = "2.5.0"
-source = "git+https://github.com/software-mansion-labs/cairo-vm?rev=aa83d6e#aa83d6e0406566c4973d0fb29880fd54553d793f"
+source = "git+https://github.com/software-mansion-labs/cairo-vm?rev=e8183f4#e8183f45cbbb723a7167450599fa586aab8b416a"
 dependencies = [
  "anyhow",
  "bincode",
