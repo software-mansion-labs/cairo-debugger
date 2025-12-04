@@ -11,7 +11,7 @@ use dap::base_message::Sendable;
 use dap::errors::ServerError;
 use dap::prelude::{Event, Request, ResponseBody, Server};
 use dap::server::{ServerReader, ServerWriter};
-use tracing::error;
+use tracing::trace;
 
 pub struct Connection {
     inbound_rx: mpsc::Receiver<Request>,
@@ -108,7 +108,7 @@ fn spawn_reader_thread(
     thread::spawn(move || {
         while let Ok(Some(request)) = server_reader.poll_request() {
             if inbound_tx.send(request).is_err() {
-                error!("Inbound channel closed");
+                trace!("Inbound channel closed");
                 break;
             }
         }
