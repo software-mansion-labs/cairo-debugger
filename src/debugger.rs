@@ -2,6 +2,7 @@ use anyhow::Result;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use dap::events::ExitedEventBody;
 use dap::prelude::Event::{Exited, Terminated};
+use dap::prelude::Request;
 use tracing::error;
 
 use crate::connection::Connection;
@@ -29,7 +30,7 @@ impl CairoDebugger {
         while !self.state.is_configuration_done() {
             // TODO(#35)
             let request = self.connection.next_request()?;
-            self.handle_request(request)?;
+            self.process_request(request)?;
         }
 
         Ok(())
@@ -37,7 +38,8 @@ impl CairoDebugger {
 
     fn sync_with_vm(&mut self, _vm: &VirtualMachine) -> Result<()> {
         while let Some(request) = self.connection.try_next_request()? {
-            self.handle_request(request)?;
+            self.process_request(request)?;
+
             if self.state.is_execution_stopped() {
                 self.process_until_resume()?;
             }
@@ -49,8 +51,18 @@ impl CairoDebugger {
     fn process_until_resume(&mut self) -> Result<()> {
         while self.state.is_execution_stopped() {
             let request = self.connection.next_request()?;
-            self.handle_request(request)?;
+            self.process_request(request)?;
         }
+
+        Ok(())
+    }
+
+    fn process_request(&mut self, request: Request) -> Result<()> {
+        let response = handler::handle_request(&mut self.state, &request)?;
+        if let Some(event) = response.event {
+            self.connection.send_event(event)?;
+        }
+        self.connection.send_success(request, response.response_body)?;
 
         Ok(())
     }
