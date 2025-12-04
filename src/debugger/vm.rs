@@ -6,7 +6,7 @@ use crate::CairoDebugger;
 
 impl RunnerPreStepHook for CairoDebugger {
     #[tracing::instrument(skip(self, vm), err)]
-    fn execute(&self, vm: &VirtualMachine) -> Result<(), VirtualMachineError> {
+    fn execute(&mut self, vm: &VirtualMachine) -> Result<(), VirtualMachineError> {
         self.sync_with_vm(vm).map_err(VirtualMachineError::Other)
     }
 }
