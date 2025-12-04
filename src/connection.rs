@@ -67,12 +67,6 @@ impl Connection {
             .send(Sendable::Response(request.success(body)))
             .context("Sending success response to outbound channel failed")
     }
-
-    pub fn send_error(&self, request: Request, msg: &str) -> Result<()> {
-        self.outbound_tx
-            .send(Sendable::Response(request.error(msg)))
-            .context("Sending error response to outbound channel failed")
-    }
 }
 
 struct IoThreads {
