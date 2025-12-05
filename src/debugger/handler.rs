@@ -2,8 +2,8 @@ use anyhow::{Result, bail};
 use dap::events::{Event, StoppedEventBody};
 use dap::prelude::{Command, Request, ResponseBody};
 use dap::responses::{
-    EvaluateResponse, ScopesResponse, SetBreakpointsResponse, StackTraceResponse, ThreadsResponse,
-    VariablesResponse,
+    ContinueResponse, EvaluateResponse, ScopesResponse, SetBreakpointsResponse, StackTraceResponse,
+    ThreadsResponse, VariablesResponse,
 };
 use dap::types::{Breakpoint, Capabilities, Source, StackFrame, StoppedEventReason, Thread};
 use tracing::trace;
@@ -16,6 +16,8 @@ pub enum HandleResult {
 }
 
 pub enum NextAction {
+    Resume,
+    Stop,
     FinishInit,
 }
 
@@ -28,7 +30,6 @@ impl CairoDebugger {
             | Command::Completions(_)
             | Command::DataBreakpointInfo(_)
             | Command::Disassemble(_)
-            | Command::Disconnect(_)
             | Command::Goto(_)
             | Command::ExceptionInfo(_)
             | Command::GotoTargets(_)
@@ -52,6 +53,12 @@ impl CairoDebugger {
                 bail!("Unsupported request");
             }
 
+            // It makes no sense to send `attach` in the current architecture.
+            Command::Attach(_) => {
+                self.connection.send_error(request, "Attach is not supported")?;
+                bail!("Unsupported request");
+            }
+
             // These may be supported after the MVP.
             // Nonetheless, if we receive these with current capabilities,
             // it is the client's fault.
@@ -69,13 +76,9 @@ impl CairoDebugger {
                 bail!("Set function breakpoints is not yet supported");
             }
 
-            // It makes no sense to send `attach` in the current architecture.
-            Command::Attach(_) => {
-                self.connection.send_error(request, "Attach is not supported")?;
-                bail!("Unsupported request");
-            }
-
             // Supported requests.
+
+            // Initialize flow requests.
             Command::Initialize(args) => {
                 trace!("Initialized a client: {:?}", args.client_name);
                 self.connection.send_success(
@@ -88,22 +91,17 @@ impl CairoDebugger {
                 self.connection.send_event(Event::Initialized)?;
                 Ok(HandleResult::Handled)
             }
+            Command::Launch(_) => {
+                self.connection.send_success(request, ResponseBody::Launch)?;
+                Ok(HandleResult::Handled)
+            }
             Command::ConfigurationDone => {
+                // Start running the Cairo program here.
                 trace!("Configuration done");
                 self.connection.send_success(request, ResponseBody::ConfigurationDone)?;
                 Ok(HandleResult::Trigger(NextAction::FinishInit))
             }
-            Command::Continue(_) => {
-                todo!()
-            }
-            Command::Launch(_) => {
-                // Start running the Cairo program here.
-                self.connection.send_success(request, ResponseBody::Launch)?;
-                Ok(HandleResult::Handled)
-            }
-            Command::Next(_) => {
-                todo!()
-            }
+
             Command::Pause(_) => {
                 self.connection.send_event(Event::Stopped(StoppedEventBody {
                     reason: StoppedEventReason::Pause,
@@ -115,8 +113,16 @@ impl CairoDebugger {
                     hit_breakpoint_ids: None,
                 }))?;
                 self.connection.send_success(request, ResponseBody::Pause)?;
-                Ok(HandleResult::Handled)
+                Ok(HandleResult::Trigger(NextAction::Stop))
             }
+            Command::Continue(_) => {
+                self.connection.send_success(
+                    request,
+                    ResponseBody::Continue(ContinueResponse { all_threads_continued: Some(true) }),
+                )?;
+                Ok(HandleResult::Trigger(NextAction::Resume))
+            }
+
             Command::SetBreakpoints(args) => {
                 let mut response_bps = Vec::new();
                 if let Some(requested_bps) = &args.breakpoints {
@@ -138,8 +144,16 @@ impl CairoDebugger {
                 )?;
                 Ok(HandleResult::Handled)
             }
-            Command::Source(_) => {
-                todo!()
+
+            Command::Threads => {
+                self.connection.send_success(
+                    request,
+                    ResponseBody::Threads(ThreadsResponse {
+                        // Return a single thread.
+                        threads: vec![Thread { id: 0, name: "".to_string() }],
+                    }),
+                )?;
+                Ok(HandleResult::Handled)
             }
             Command::StackTrace(_) => {
                 self.connection.send_success(
@@ -160,10 +174,35 @@ impl CairoDebugger {
                 )?;
                 Ok(HandleResult::Handled)
             }
+            Command::Scopes(_) => {
+                // Return no scopes.
+                self.connection.send_success(
+                    request,
+                    ResponseBody::Scopes(ScopesResponse { scopes: vec![] }),
+                )?;
+                Ok(HandleResult::Handled)
+            }
+            Command::Variables(_) => {
+                self.connection.send_success(
+                    request,
+                    ResponseBody::Variables(VariablesResponse {
+                        // Return no variables.
+                        variables: vec![],
+                    }),
+                )?;
+                Ok(HandleResult::Handled)
+            }
+
+            Command::Next(_) => {
+                todo!()
+            }
             Command::StepIn(_) => {
                 todo!()
             }
             Command::StepOut(_) => {
+                todo!()
+            }
+            Command::Source(_) => {
                 todo!()
             }
 
@@ -183,33 +222,9 @@ impl CairoDebugger {
                 )?;
                 Ok(HandleResult::Handled)
             }
-            Command::Threads => {
-                self.connection.send_success(
-                    request,
-                    ResponseBody::Threads(ThreadsResponse {
-                        // Return a single thread.
-                        threads: vec![Thread { id: 0, name: "".to_string() }],
-                    }),
-                )?;
-                Ok(HandleResult::Handled)
-            }
-            Command::Variables(_) => {
-                self.connection.send_success(
-                    request,
-                    ResponseBody::Variables(VariablesResponse {
-                        // Return no variables.
-                        variables: vec![],
-                    }),
-                )?;
-                Ok(HandleResult::Handled)
-            }
-            Command::Scopes(_) => {
-                // Return no scopes.
-                self.connection.send_success(
-                    request,
-                    ResponseBody::Scopes(ScopesResponse { scopes: vec![] }),
-                )?;
-                Ok(HandleResult::Handled)
+
+            Command::Disconnect(_) => {
+                todo!()
             }
         }
     }
