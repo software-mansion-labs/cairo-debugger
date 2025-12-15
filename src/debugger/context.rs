@@ -1,5 +1,6 @@
 use std::fs;
 
+use anyhow::Result;
 use cairo_annotations::annotations::TryFromDebugInfo;
 use cairo_annotations::annotations::coverage::CoverageAnnotationsV1 as SierraCodeLocations;
 use cairo_lang_sierra::program::ProgramArtifact;
@@ -10,14 +11,13 @@ pub struct Context {
 }
 
 impl Context {
-    pub fn new(sierra_path: &Utf8Path) -> Self {
+    pub fn new(sierra_path: &Utf8Path) -> Result<Self> {
         let content = fs::read_to_string(sierra_path).expect("Failed to load sierra file");
-        let sierra_program: ProgramArtifact = serde_json::from_str(&content).unwrap();
+        let sierra_program: ProgramArtifact = serde_json::from_str(&content)?;
         let code_locations = SierraCodeLocations::try_from_debug_info(
-            &sierra_program.debug_info.expect("debug_info must be present"),
-        )
-        .expect("Failed to parse coverage annotations");
+            &sierra_program.debug_info.expect("debug_info must be present in compiled sierra"),
+        )?;
 
-        Self { code_locations }
+        Ok(Self { code_locations })
     }
 }
