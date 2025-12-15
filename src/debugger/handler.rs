@@ -1,4 +1,5 @@
 use anyhow::{Result, bail};
+use cairo_lang_sierra::program::StatementIdx;
 use dap::events::{Event, StoppedEventBody};
 use dap::prelude::{Command, Request, ResponseBody};
 use dap::responses::{
@@ -8,6 +9,7 @@ use dap::responses::{
 use dap::types::{Breakpoint, Capabilities, Source, StackFrame, StoppedEventReason, Thread};
 use tracing::{error, trace};
 
+use crate::debugger::context::Context;
 use crate::debugger::state::State;
 
 pub struct HandlerResponse {
@@ -29,7 +31,11 @@ impl HandlerResponse {
     }
 }
 
-pub fn handle_request(state: &mut State, request: &Request) -> Result<HandlerResponse> {
+pub fn handle_request(
+    request: &Request,
+    state: &mut State,
+    ctx: &Context,
+) -> Result<HandlerResponse> {
     match &request.command {
         // We have not yet decided if we want to support these.
         Command::Attach(_)
@@ -123,22 +129,27 @@ pub fn handle_request(state: &mut State, request: &Request) -> Result<HandlerRes
             })
             .into())
         }
-        Command::StackTrace(_) => {
-            Ok(ResponseBody::StackTrace(StackTraceResponse {
-                stack_frames: vec![StackFrame {
-                    id: 1,
-                    name: "test".to_string(),
-                    // Replace it with the actual source path.
-                    // Otherwise, the debugger will crush after returning this response.
-                    source: Some(Source { name: None, path: None, ..Default::default() }),
-                    line: 1,
-                    column: 1,
+        Command::StackTrace(_) => Ok(ResponseBody::StackTrace(StackTraceResponse {
+            stack_frames: vec![StackFrame {
+                id: 1,
+                name: "test".to_string(),
+                source: Some(Source {
+                    name: None,
+                    path: ctx
+                        .code_locations
+                        .statements_code_locations
+                        .get(&StatementIdx(1))
+                        .and_then(|locations| locations.first())
+                        .map(|val| val.0.0.clone()),
                     ..Default::default()
-                }],
-                total_frames: Some(1),
-            })
-            .into())
-        }
+                }),
+                line: 1,
+                column: 1,
+                ..Default::default()
+            }],
+            total_frames: Some(1),
+        })
+        .into()),
         Command::Scopes(_) => {
             // Return no scopes.
             Ok(ResponseBody::Scopes(ScopesResponse { scopes: vec![] }).into())
