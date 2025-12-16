@@ -110,6 +110,7 @@ pub fn handle_request(
             let mut response_bps = Vec::new();
             if let Some(requested_bps) = &args.breakpoints {
                 for bp in requested_bps {
+                    state.set_breakpoint(args.source.path.clone().unwrap(), bp.line as usize, ctx);
                     // For now accept every breakpoint as valid
                     response_bps.push(Breakpoint {
                         verified: true,

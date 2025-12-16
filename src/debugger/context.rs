@@ -1,8 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
-use std::path::{Path, PathBuf};
-
 use anyhow::{Context as AnyhowContext, Result, anyhow};
+use std::path::{Path, PathBuf};
 use cairo_annotations::annotations::TryFromDebugInfo;
 use cairo_annotations::annotations::coverage::{
     CodeLocation, CoverageAnnotationsV1 as SierraCodeLocations,
@@ -10,20 +9,23 @@ use cairo_annotations::annotations::coverage::{
 use cairo_lang_sierra::program::{ProgramArtifact, StatementIdx};
 use scarb_metadata::MetadataCommand;
 
+/// Sierra statement index -> start offset
+pub type CasmDebugInfo = Vec<usize>;
+
+/// Struct that holds all the initial data needed for the debugger during execution.
 pub struct Context {
     pub root_path: PathBuf,
-    pub code_locations: SierraCodeLocations,
-    pub casm_debug_info: CasmDebugInfo,
-    pub files_data: HashMap<Utf8PathBuf, FileCodeLocationsData>,
+    files_data: HashMap<Utf8PathBuf, FileCodeLocationsData>,
+    casm_debug_info: CasmDebugInfo,
+    code_locations: SierraCodeLocations,
 }
 
-#[derive(Debug)]
 pub struct FileCodeLocationsData {
-    pub lines: BTreeMap<usize, StatementToPc>,
+    pub lines: BTreeMap<usize, StatementPc>,
 }
 
-#[derive(Copy, Clone, Debug)]
-pub struct StatementToPc {
+#[derive(Copy, Clone)]
+pub struct StatementPc {
     pub statement_idx: usize,
     pub pc: usize,
 }
@@ -62,27 +64,48 @@ impl Context {
             .and_then(|locations| locations.first())
             .cloned()
     }
+
+    pub fn get_pc_for_line(&self, source: &Utf8Path, line: usize) -> Option<usize> {
+        let lines_data = &self.files_data.get(source)?.lines;
+        // In annotations lines are 0-indexed, but in the source code they are 1-indexed.
+        let line = line.saturating_sub(1);
+
+        if let Some(entry) = lines_data.get(&line) {
+            return Some(entry.pc);
+        }
+
+        // If we did not find a pc for the exact line,
+        // we need to find the next line that is greater than the input line.
+        // Then we take the pc of the previous Sierra statement.
+        if let Some((_next_line, entry)) = lines_data.range(line..).next() {
+            let target_idx = entry.statement_idx.saturating_sub(1);
+            return self.casm_debug_info.get(target_idx).copied();
+        }
+
+        None
+    }
 }
 
+/// Builds a map to store Sierra statement index and start offset for each file and line.
 pub fn build_file_locations_map(
     statement_to_pc: &[usize],
     code_location_annotations: &SierraCodeLocations,
 ) -> HashMap<Utf8PathBuf, FileCodeLocationsData> {
     // Intermediate storage:
-    // Path -> Line -> (smallest column, StatementToPc)
-    let mut file_map: HashMap<Utf8PathBuf, BTreeMap<usize, (usize, StatementToPc)>> =
-        HashMap::new();
+    // Path -> Line -> (min column, sierra statement index and pc)
+    let mut file_map: HashMap<Utf8PathBuf, BTreeMap<usize, (usize, StatementPc)>> = HashMap::new();
 
     for (statement_idx, locations) in &code_location_annotations.statements_code_locations {
         let idx_val = statement_idx.0;
-        // Get the PC for the current statement
-        // If the index is out of bounds, we skip it (safety check)
+        // Get the PC for the current statement.
+        // If the index is out of bounds, we skip it.
+        // It should not happen, just a sanity check.
         let pc = match statement_to_pc.get(idx_val) {
             Some(&pc) => pc,
             None => continue,
         };
 
-        let new_entry = StatementToPc { statement_idx: idx_val, pc };
+        let new_entry = StatementPc { statement_idx: idx_val, pc };
 
         for loc in locations {
             let path_str = &loc.0.0;
@@ -92,10 +115,10 @@ pub fn build_file_locations_map(
             let line = start_location.line.0;
             let col = start_location.col.0;
 
-            // Get or create the map for this specific file
+            // Get or create the map for this specific file.
             let lines_in_file = file_map.entry(path).or_default();
 
-            // Check if we already have a breakpoint for this line
+            // Check if we already have data for this line.
             lines_in_file
                 .entry(line)
                 .and_modify(|(existing_col, existing_entry)| {

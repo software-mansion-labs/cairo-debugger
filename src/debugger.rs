@@ -2,9 +2,11 @@ use std::path::Path;
 
 use anyhow::Result;
 use cairo_vm::vm::vm_core::VirtualMachine;
-use dap::events::ExitedEventBody;
+use camino::Utf8Path;
+use dap::events::{Event, ExitedEventBody, StoppedEventBody};
 use dap::prelude::Event::{Exited, Terminated};
 use dap::prelude::Request;
+use dap::types::StoppedEventReason;
 use tracing::error;
 
 use crate::connection::Connection;
@@ -48,6 +50,7 @@ impl CairoDebugger {
 
     fn sync_with_vm(&mut self, vm: &VirtualMachine) -> Result<()> {
         self.state.current_pc = vm.get_pc().offset;
+        self.maybe_handle_breakpoint_hit(current_pc)?;
 
         while let Some(request) = self.connection.try_next_request()? {
             self.process_request(request)?;
@@ -75,6 +78,26 @@ impl CairoDebugger {
             self.connection.send_event(event)?;
         }
         self.connection.send_success(request, response.response_body)?;
+
+        Ok(())
+    }
+
+    fn maybe_handle_breakpoint_hit(&mut self, current_pc: usize) -> Result<()> {
+        if self.state.breakpoints.contains(&current_pc) {
+            self.state.stop_execution();
+            self.state.current_pc = current_pc;
+
+            self.connection.send_event(Event::Stopped(StoppedEventBody {
+                reason: StoppedEventReason::Breakpoint,
+                thread_id: Some(0),
+                all_threads_stopped: Some(true),
+                hit_breakpoint_ids: Some(vec![0]), // TODO: Check if id is important here
+                description: None,
+                preserve_focus_hint: None,
+                text: None,
+            }))?;
+            self.process_until_resume()?;
+        }
 
         Ok(())
     }
