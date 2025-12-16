@@ -45,11 +45,12 @@ impl CairoDebugger {
         Ok(())
     }
 
-    fn sync_with_vm(&mut self, _vm: &VirtualMachine) -> Result<()> {
+    fn sync_with_vm(&mut self, vm: &VirtualMachine) -> Result<()> {
         while let Some(request) = self.connection.try_next_request()? {
             self.process_request(request)?;
 
             if self.state.is_execution_stopped() {
+                self.state.current_pc = vm.get_pc().offset;
                 self.process_until_resume()?;
             }
         }
