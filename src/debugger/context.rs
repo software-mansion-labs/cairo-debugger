@@ -1,3 +1,4 @@
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -13,6 +14,18 @@ pub struct Context {
     pub root_path: PathBuf,
     pub code_locations: SierraCodeLocations,
     pub casm_debug_info: CasmDebugInfo,
+    pub files_data: HashMap<Utf8PathBuf, FileCodeLocationsData>,
+}
+
+#[derive(Debug)]
+pub struct FileCodeLocationsData {
+    pub lines: BTreeMap<usize, StatementToPc>,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct StatementToPc {
+    pub statement_idx: usize,
+    pub pc: usize,
 }
 
 pub struct CasmDebugInfo {
@@ -30,8 +43,9 @@ impl Context {
             .debug_info
             .ok_or_else(|| anyhow!("debug_info must be present in compiled sierra"))?;
         let code_locations = SierraCodeLocations::try_from_debug_info(&debug_info)?;
+        let files_data = build_file_locations_map(&casm_debug_info, &code_locations);
 
-        Ok(Self { root_path, code_locations, casm_debug_info })
+        Ok(Self { root_path, code_locations, casm_debug_info, files_data })
     }
 
     pub fn map_pc_to_code_location(&self, pc: usize) -> Option<CodeLocation> {
@@ -48,6 +62,65 @@ impl Context {
             .and_then(|locations| locations.first())
             .cloned()
     }
+}
+
+pub fn build_file_locations_map(
+    statement_to_pc: &[usize],
+    code_location_annotations: &SierraCodeLocations,
+) -> HashMap<Utf8PathBuf, FileCodeLocationsData> {
+    // Intermediate storage:
+    // Path -> Line -> (smallest column, StatementToPc)
+    let mut file_map: HashMap<Utf8PathBuf, BTreeMap<usize, (usize, StatementToPc)>> =
+        HashMap::new();
+
+    for (statement_idx, locations) in &code_location_annotations.statements_code_locations {
+        let idx_val = statement_idx.0;
+        // Get the PC for the current statement
+        // If the index is out of bounds, we skip it (safety check)
+        let pc = match statement_to_pc.get(idx_val) {
+            Some(&pc) => pc,
+            None => continue,
+        };
+
+        let new_entry = StatementToPc { statement_idx: idx_val, pc };
+
+        for loc in locations {
+            let path_str = &loc.0.0;
+            let path = Utf8PathBuf::from(path_str);
+
+            let start_location = &loc.1.start;
+            let line = start_location.line.0;
+            let col = start_location.col.0;
+
+            // Get or create the map for this specific file
+            let lines_in_file = file_map.entry(path).or_default();
+
+            // Check if we already have a breakpoint for this line
+            lines_in_file
+                .entry(line)
+                .and_modify(|(existing_col, existing_entry)| {
+                    if col < *existing_col {
+                        *existing_col = col;
+                        *existing_entry = new_entry;
+                    }
+                })
+                .or_insert((col, new_entry));
+        }
+    }
+
+    // Transform the intermediate map into the final output format,
+    // removing the column information as it is no longer necessary.
+    file_map
+        .into_iter()
+        .map(|(path, lines_map)| {
+            let clean_lines = lines_map
+                .into_iter()
+                .map(|(line, (_col, stmt))| (line, stmt))
+                .collect::<BTreeMap<_, _>>();
+
+            (path, FileCodeLocationsData { lines: clean_lines })
+        })
+        .collect()
 }
 
 // TODO(#50)
