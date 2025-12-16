@@ -9,6 +9,6 @@ cairo-vm = { git = "https://github.com/software-mansion-labs/cairo-vm", rev = "e
 cairo-annotations = { version = "0.7.0", features = ["cairo-lang"] }
 cairo-lang-sierra = "2.12.3"
 camino = "1.2"
-serde_json = "1.0.145"
+serde_json = "1"
 tracing = "0.1"
 anyhow = "1.0"
