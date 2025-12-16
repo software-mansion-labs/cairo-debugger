@@ -7,7 +7,7 @@ use dap::prelude::Request;
 use tracing::error;
 
 use crate::connection::Connection;
-use crate::debugger::context::Context;
+use crate::debugger::context::{CasmDebugInfo, Context};
 use crate::debugger::state::State;
 
 mod context;
@@ -22,9 +22,12 @@ pub struct CairoDebugger {
 }
 
 impl CairoDebugger {
-    pub fn connect_and_initialize(sierra_path: &Utf8Path) -> Result<Self> {
+    pub fn connect_and_initialize(
+        sierra_path: &Utf8Path,
+        casm_debug_info: CasmDebugInfo,
+    ) -> Result<Self> {
         let connection = Connection::new()?;
-        let ctx = Context::new(sierra_path)?;
+        let ctx = Context::new(sierra_path, casm_debug_info)?;
 
         let mut debugger = Self { connection, ctx, state: State::new() };
         debugger.initialize()?;
