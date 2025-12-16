@@ -18,6 +18,8 @@ pub fn build_stack_frame(ctx: &Context, pc: usize) -> StackFrame {
                     path: Some(file_path.to_string()),
                     ..Default::default()
                 }),
+                // Annotations from debug info are 0-indexed.
+                // UI expects 1-indexed, hence +1 below.
                 line: (code_span.start.line.0 + 1) as i64,
                 column: (code_span.start.col.0 + 1) as i64,
                 presentation_hint: Some(if is_user_code {
