@@ -1,19 +1,17 @@
 use anyhow::{Result, bail};
-use camino::Utf8PathBuf;
 use dap::events::{Event, StoppedEventBody};
 use dap::prelude::{Command, Request, ResponseBody};
 use dap::responses::{
     ContinueResponse, EvaluateResponse, ScopesResponse, SetBreakpointsResponse, StackTraceResponse,
     ThreadsResponse, VariablesResponse,
 };
-use dap::types::{
-    Breakpoint, Capabilities, Source, StackFrame, StackFramePresentationhint, StoppedEventReason,
-    Thread,
-};
+use dap::types::{Breakpoint, Capabilities, StoppedEventReason, Thread};
 use tracing::{error, trace};
 
 use crate::debugger::context::Context;
 use crate::debugger::state::State;
+
+mod stack_trace;
 
 pub struct HandlerResponse {
     pub response_body: ResponseBody,
@@ -132,35 +130,11 @@ pub fn handle_request(
             })
             .into())
         }
-        Command::StackTrace(_) => {
-            let code_location = ctx.map_pc_to_code_location(state.current_pc);
-            let source_path = code_location.as_ref().map(|val| val.0.0.clone()).unwrap();
-
-            let presentation_hint = if Utf8PathBuf::from(source_path).starts_with(&ctx.root_path) {
-                StackFramePresentationhint::Normal
-            } else {
-                StackFramePresentationhint::Subtle
-            };
-            Ok(ResponseBody::StackTrace(StackTraceResponse {
-                stack_frames: vec![StackFrame {
-                    id: 1,
-                    name: "test".to_string(),
-                    source: Some(Source {
-                        name: None,
-                        path: code_location.as_ref().map(|val| val.0.0.clone()),
-                        ..Default::default()
-                    }),
-                    line: code_location.as_ref().map(|val| val.1.start.line.0 + 1).unwrap_or(1)
-                        as i64,
-                    column: code_location.as_ref().map(|val| val.1.start.col.0 + 1).unwrap_or(1)
-                        as i64,
-                    presentation_hint: Some(presentation_hint),
-                    ..Default::default()
-                }],
-                total_frames: Some(1),
-            })
-            .into())
-        }
+        Command::StackTrace(_) => Ok(ResponseBody::StackTrace(StackTraceResponse {
+            stack_frames: vec![stack_trace::build_stack_frame(ctx, state.current_pc)],
+            total_frames: Some(1),
+        })
+        .into()),
         Command::Scopes(_) => {
             // Return no scopes.
             Ok(ResponseBody::Scopes(ScopesResponse { scopes: vec![] }).into())
