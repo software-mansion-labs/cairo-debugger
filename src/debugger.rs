@@ -1,26 +1,32 @@
 use anyhow::Result;
 use cairo_vm::vm::vm_core::VirtualMachine;
+use camino::Utf8Path;
 use dap::events::ExitedEventBody;
 use dap::prelude::Event::{Exited, Terminated};
 use dap::prelude::Request;
 use tracing::error;
 
 use crate::connection::Connection;
+use crate::debugger::context::Context;
 use crate::debugger::state::State;
 
+mod context;
 mod handler;
 mod state;
 mod vm;
 
 pub struct CairoDebugger {
     connection: Connection,
+    ctx: Context,
     state: State,
 }
 
 impl CairoDebugger {
-    pub fn connect_and_initialize() -> Result<Self> {
+    pub fn connect_and_initialize(sierra_path: &Utf8Path) -> Result<Self> {
         let connection = Connection::new()?;
-        let mut debugger = Self { connection, state: State::new() };
+        let ctx = Context::new(sierra_path)?;
+
+        let mut debugger = Self { connection, ctx, state: State::new() };
         debugger.initialize()?;
 
         Ok(debugger)
@@ -58,7 +64,7 @@ impl CairoDebugger {
     }
 
     fn process_request(&mut self, request: Request) -> Result<()> {
-        let response = handler::handle_request(&mut self.state, &request)?;
+        let response = handler::handle_request(&request, &mut self.state, &self.ctx)?;
         if let Some(event) = response.event {
             self.connection.send_event(event)?;
         }
