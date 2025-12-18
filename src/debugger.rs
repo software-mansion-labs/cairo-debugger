@@ -2,7 +2,6 @@ use std::path::Path;
 
 use anyhow::Result;
 use cairo_vm::vm::vm_core::VirtualMachine;
-use camino::Utf8Path;
 use dap::events::{Event, ExitedEventBody, StoppedEventBody};
 use dap::prelude::Event::{Exited, Terminated};
 use dap::prelude::Request;
@@ -13,7 +12,7 @@ use crate::connection::Connection;
 use crate::debugger::context::{CasmDebugInfo, Context};
 use crate::debugger::state::State;
 
-mod context;
+pub mod context;
 mod handler;
 mod state;
 mod vm;
@@ -50,7 +49,7 @@ impl CairoDebugger {
 
     fn sync_with_vm(&mut self, vm: &VirtualMachine) -> Result<()> {
         self.state.current_pc = vm.get_pc().offset;
-        self.maybe_handle_breakpoint_hit(current_pc)?;
+        self.maybe_handle_breakpoint_hit()?;
 
         while let Some(request) = self.connection.try_next_request()? {
             self.process_request(request)?;
@@ -82,10 +81,9 @@ impl CairoDebugger {
         Ok(())
     }
 
-    fn maybe_handle_breakpoint_hit(&mut self, current_pc: usize) -> Result<()> {
-        if self.state.breakpoints.contains(&current_pc) {
+    fn maybe_handle_breakpoint_hit(&mut self) -> Result<()> {
+        if self.state.breakpoints.contains(&self.state.current_pc) {
             self.state.stop_execution();
-            self.state.current_pc = current_pc;
 
             self.connection.send_event(Event::Stopped(StoppedEventBody {
                 reason: StoppedEventReason::Breakpoint,

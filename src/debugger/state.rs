@@ -1,6 +1,6 @@
 use std::collections::HashSet;
+use std::path::Path;
 
-use camino::Utf8Path;
 use tracing::{debug, trace};
 
 use crate::debugger::context::Context;
@@ -48,7 +48,7 @@ impl State {
     pub fn set_breakpoint(&mut self, source: String, line: usize, ctx: &Context) {
         debug!("setting breakpoint for file: {:?}, line: {:?}", source, line);
 
-        let pc = ctx.get_pc_for_line(Utf8Path::new(&source), line);
+        let pc = ctx.get_pc_for_line(Path::new(&source), line);
 
         if let Some(pc) = pc {
             self.breakpoints.insert(pc);

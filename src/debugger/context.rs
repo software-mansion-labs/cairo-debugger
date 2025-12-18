@@ -1,7 +1,8 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fs;
-use anyhow::{Context as AnyhowContext, Result, anyhow};
 use std::path::{Path, PathBuf};
+
+use anyhow::{Context as AnyhowContext, Result, anyhow};
 use cairo_annotations::annotations::TryFromDebugInfo;
 use cairo_annotations::annotations::coverage::{
     CodeLocation, CoverageAnnotationsV1 as SierraCodeLocations,
@@ -9,13 +10,10 @@ use cairo_annotations::annotations::coverage::{
 use cairo_lang_sierra::program::{ProgramArtifact, StatementIdx};
 use scarb_metadata::MetadataCommand;
 
-/// Sierra statement index -> start offset
-pub type CasmDebugInfo = Vec<usize>;
-
 /// Struct that holds all the initial data needed for the debugger during execution.
 pub struct Context {
     pub root_path: PathBuf,
-    files_data: HashMap<Utf8PathBuf, FileCodeLocationsData>,
+    files_data: HashMap<PathBuf, FileCodeLocationsData>,
     casm_debug_info: CasmDebugInfo,
     code_locations: SierraCodeLocations,
 }
@@ -45,7 +43,8 @@ impl Context {
             .debug_info
             .ok_or_else(|| anyhow!("debug_info must be present in compiled sierra"))?;
         let code_locations = SierraCodeLocations::try_from_debug_info(&debug_info)?;
-        let files_data = build_file_locations_map(&casm_debug_info, &code_locations);
+        let files_data =
+            build_file_locations_map(&casm_debug_info.statement_to_pc, &code_locations);
 
         Ok(Self { root_path, code_locations, casm_debug_info, files_data })
     }
@@ -65,7 +64,7 @@ impl Context {
             .cloned()
     }
 
-    pub fn get_pc_for_line(&self, source: &Utf8Path, line: usize) -> Option<usize> {
+    pub fn get_pc_for_line(&self, source: &Path, line: usize) -> Option<usize> {
         let lines_data = &self.files_data.get(source)?.lines;
         // In annotations lines are 0-indexed, but in the source code they are 1-indexed.
         let line = line.saturating_sub(1);
@@ -79,7 +78,7 @@ impl Context {
         // Then we take the pc of the previous Sierra statement.
         if let Some((_next_line, entry)) = lines_data.range(line..).next() {
             let target_idx = entry.statement_idx.saturating_sub(1);
-            return self.casm_debug_info.get(target_idx).copied();
+            return self.casm_debug_info.statement_to_pc.get(target_idx).copied();
         }
 
         None
@@ -90,10 +89,10 @@ impl Context {
 pub fn build_file_locations_map(
     statement_to_pc: &[usize],
     code_location_annotations: &SierraCodeLocations,
-) -> HashMap<Utf8PathBuf, FileCodeLocationsData> {
+) -> HashMap<PathBuf, FileCodeLocationsData> {
     // Intermediate storage:
     // Path -> Line -> (min column, sierra statement index and pc)
-    let mut file_map: HashMap<Utf8PathBuf, BTreeMap<usize, (usize, StatementPc)>> = HashMap::new();
+    let mut file_map: HashMap<PathBuf, BTreeMap<usize, (usize, StatementPc)>> = HashMap::new();
 
     for (statement_idx, locations) in &code_location_annotations.statements_code_locations {
         let idx_val = statement_idx.0;
@@ -109,7 +108,7 @@ pub fn build_file_locations_map(
 
         for loc in locations {
             let path_str = &loc.0.0;
-            let path = Utf8PathBuf::from(path_str);
+            let path = PathBuf::from(path_str);
 
             let start_location = &loc.1.start;
             let line = start_location.line.0;
