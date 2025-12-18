@@ -1,6 +1,7 @@
+use std::path::Path;
+
 use anyhow::Result;
 use cairo_vm::vm::vm_core::VirtualMachine;
-use camino::Utf8Path;
 use dap::events::ExitedEventBody;
 use dap::prelude::Event::{Exited, Terminated};
 use dap::prelude::Request;
@@ -23,7 +24,7 @@ pub struct CairoDebugger {
 
 impl CairoDebugger {
     pub fn connect_and_initialize(
-        sierra_path: &Utf8Path,
+        sierra_path: &Path,
         casm_debug_info: CasmDebugInfo,
     ) -> Result<Self> {
         let connection = Connection::new()?;

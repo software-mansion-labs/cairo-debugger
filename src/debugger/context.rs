@@ -1,4 +1,5 @@
 use std::fs;
+use std::path::{Path, PathBuf};
 
 use anyhow::{Context as AnyhowContext, Result, anyhow};
 use cairo_annotations::annotations::TryFromDebugInfo;
@@ -6,20 +7,19 @@ use cairo_annotations::annotations::coverage::{
     CodeLocation, CoverageAnnotationsV1 as SierraCodeLocations,
 };
 use cairo_lang_sierra::program::{ProgramArtifact, StatementIdx};
-use camino::{Utf8Path, Utf8PathBuf};
 use scarb_metadata::MetadataCommand;
 
 // Sierra statement index -> start offset
 pub type CasmDebugInfo = Vec<usize>;
 
 pub struct Context {
-    pub root_path: Utf8PathBuf,
+    pub root_path: PathBuf,
     pub code_locations: SierraCodeLocations,
     pub casm_debug_info: CasmDebugInfo,
 }
 
 impl Context {
-    pub fn new(sierra_path: &Utf8Path, casm_debug_info: CasmDebugInfo) -> Result<Self> {
+    pub fn new(sierra_path: &Path, casm_debug_info: CasmDebugInfo) -> Result<Self> {
         let root_path = get_project_root_path()?;
 
         let content = fs::read_to_string(sierra_path).expect("Failed to load sierra file");
@@ -47,7 +47,7 @@ impl Context {
     }
 }
 
-fn get_project_root_path() -> Result<Utf8PathBuf> {
+fn get_project_root_path() -> Result<PathBuf> {
     let current_dir = std::env::current_dir()?;
     Ok(MetadataCommand::new()
         .current_dir(current_dir)
@@ -55,5 +55,6 @@ fn get_project_root_path() -> Result<Utf8PathBuf> {
         .exec()
         .context("Failed to get project metadata from Scarb")?
         .workspace
-        .root)
+        .root
+        .into())
 }

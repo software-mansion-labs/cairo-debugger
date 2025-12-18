@@ -1,5 +1,6 @@
+use std::path::Path;
+
 use cairo_annotations::annotations::coverage::CodeLocation;
-use camino::Utf8Path;
 use dap::types::{Source, StackFrame, StackFramePresentationhint};
 
 use crate::debugger::context::Context;
@@ -7,7 +8,7 @@ use crate::debugger::context::Context;
 pub fn build_stack_frame(ctx: &Context, pc: usize) -> StackFrame {
     match ctx.map_pc_to_code_location(pc) {
         Some(CodeLocation(source_file, code_span, _)) => {
-            let file_path = Utf8Path::new(&source_file.0);
+            let file_path = Path::new(&source_file.0);
             let is_user_code = file_path.starts_with(&ctx.root_path);
 
             StackFrame {
@@ -15,7 +16,7 @@ pub fn build_stack_frame(ctx: &Context, pc: usize) -> StackFrame {
                 name: "test".to_string(),
                 source: Some(Source {
                     name: None,
-                    path: Some(file_path.to_string()),
+                    path: Some(source_file.0),
                     ..Default::default()
                 }),
                 // Annotations from debug info are 0-indexed.
