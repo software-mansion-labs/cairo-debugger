@@ -13,24 +13,24 @@ use scarb_metadata::MetadataCommand;
 /// Struct that holds all the initial data needed for the debugger during execution.
 pub struct Context {
     pub root_path: PathBuf,
-    files_data: HashMap<PathBuf, FileCodeLocationsData>,
     casm_debug_info: CasmDebugInfo,
     code_locations: SierraCodeLocations,
-}
-
-pub struct FileCodeLocationsData {
-    pub lines: BTreeMap<usize, StatementPc>,
-}
-
-#[derive(Copy, Clone)]
-pub struct StatementPc {
-    pub statement_idx: usize,
-    pub pc: usize,
+    files_data: HashMap<PathBuf, FileCodeLocationsData>,
 }
 
 pub struct CasmDebugInfo {
     /// Sierra statement index -> start CASM bytecode offset
     statement_to_pc: Vec<usize>,
+}
+
+struct FileCodeLocationsData {
+    lines: BTreeMap<usize, StatementPc>,
+}
+
+#[derive(Copy, Clone)]
+struct StatementPc {
+    statement_idx: usize,
+    pc: usize,
 }
 
 impl Context {
@@ -86,7 +86,7 @@ impl Context {
 }
 
 /// Builds a map to store Sierra statement index and start offset for each file and line.
-pub fn build_file_locations_map(
+fn build_file_locations_map(
     statement_to_pc: &[usize],
     code_location_annotations: &SierraCodeLocations,
 ) -> HashMap<PathBuf, FileCodeLocationsData> {
