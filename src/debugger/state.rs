@@ -45,13 +45,15 @@ impl State {
         self.execution_stopped = false;
     }
 
-    pub fn set_breakpoint(&mut self, source: String, line: Line, ctx: &Context) {
-        debug!("setting breakpoint for file: {:?}, line: {:?}", source, line);
-
+    pub fn verify_and_set_breakpoint(&mut self, source: String, line: Line, ctx: &Context) -> bool {
         let pc = ctx.get_pc_for_line(Path::new(&source), line);
 
         if let Some(pc) = pc {
+            debug!("Setting breakpoint for file: {:?}, line: {:?}", source, line);
             self.breakpoints.insert(pc);
+            return true;
         }
+
+        false
     }
 }
