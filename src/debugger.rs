@@ -47,11 +47,12 @@ impl CairoDebugger {
     }
 
     fn sync_with_vm(&mut self, vm: &VirtualMachine) -> Result<()> {
+        self.state.current_pc = vm.get_pc().offset;
+
         while let Some(request) = self.connection.try_next_request()? {
             self.process_request(request)?;
 
             if self.state.is_execution_stopped() {
-                self.state.current_pc = vm.get_pc().offset;
                 self.process_until_resume()?;
             }
         }
