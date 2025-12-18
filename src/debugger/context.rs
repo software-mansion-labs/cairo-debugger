@@ -50,6 +50,7 @@ impl Context {
     }
 }
 
+// TODO(#50)
 fn get_project_root_path() -> Result<PathBuf> {
     let current_dir = std::env::current_dir()?;
     Ok(MetadataCommand::new()
