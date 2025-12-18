@@ -9,13 +9,15 @@ use cairo_annotations::annotations::coverage::{
 use cairo_lang_sierra::program::{ProgramArtifact, StatementIdx};
 use scarb_metadata::MetadataCommand;
 
-// Sierra statement index -> start offset
-pub type CasmDebugInfo = Vec<usize>;
-
 pub struct Context {
     pub root_path: PathBuf,
     pub code_locations: SierraCodeLocations,
     pub casm_debug_info: CasmDebugInfo,
+}
+
+pub struct CasmDebugInfo {
+    // Sierra statement index -> start offset
+    statement_to_pc: Vec<usize>,
 }
 
 impl Context {
@@ -36,7 +38,10 @@ impl Context {
     /// Technically, it should never be `None` if pc and annotations are valid.
     pub fn map_pc_to_code_location(&self, pc: usize) -> Option<CodeLocation> {
         let statement_idx = StatementIdx(
-            self.casm_debug_info.partition_point(|&offset| offset <= pc).saturating_sub(1),
+            self.casm_debug_info
+                .statement_to_pc
+                .partition_point(|&offset| offset <= pc)
+                .saturating_sub(1),
         );
 
         self.code_locations
