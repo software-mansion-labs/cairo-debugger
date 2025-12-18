@@ -48,7 +48,9 @@ impl Context {
 }
 
 fn get_project_root_path() -> Result<Utf8PathBuf> {
+    let current_dir = std::env::current_dir()?;
     Ok(MetadataCommand::new()
+        .current_dir(current_dir)
         .inherit_stderr()
         .exec()
         .context("Failed to get project metadata from Scarb")?
