@@ -2,8 +2,8 @@ use anyhow::{Result, bail};
 use dap::events::{Event, StoppedEventBody};
 use dap::prelude::{Command, Request, ResponseBody};
 use dap::responses::{
-    ContinueResponse, EvaluateResponse, ScopesResponse, SetBreakpointsResponse, StackTraceResponse,
-    ThreadsResponse, VariablesResponse,
+    ContinueResponse, EvaluateResponse, ScopesResponse, SetBreakpointsResponse,
+    SetExceptionBreakpointsResponse, StackTraceResponse, ThreadsResponse, VariablesResponse,
 };
 use dap::types::{Breakpoint, Capabilities, StoppedEventReason, Thread};
 use tracing::{error, trace};
@@ -57,7 +57,6 @@ pub fn handle_request(
         | Command::RestartFrame(_)
         | Command::SetDataBreakpoints(_)
         | Command::Restart(_)
-        | Command::SetExceptionBreakpoints(_)
         | Command::TerminateThreads(_)
         | Command::Terminate(_)
         | Command::StepInTargets(_)
@@ -68,6 +67,19 @@ pub fn handle_request(
             // If we receive these with current capabilities, it is the client's fault.
             error!("Received unsupported request: {request:?}");
             bail!("Unsupported request");
+        }
+        Command::SetExceptionBreakpoints(_) => {
+            // VS Code sometimes sends this request based on old user settings,
+            // even if we disabled the feature in our initialization.
+            //
+            // We reply with "success" to keep the debug session running smoothly,
+            // but we intentionally ignore the request and set no breakpoints.
+
+            trace!("Ignoring SetExceptionBreakpoints request (feature disabled)");
+            Ok(ResponseBody::SetExceptionBreakpoints(SetExceptionBreakpointsResponse {
+                breakpoints: None,
+            })
+            .into())
         }
 
         // Initialize flow requests.
