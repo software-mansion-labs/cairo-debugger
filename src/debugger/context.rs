@@ -34,8 +34,6 @@ impl Context {
         Ok(Self { root_path, code_locations, casm_debug_info })
     }
 
-    /// Returns code location for the given PC.
-    /// Technically, it should never be `None` if pc and annotations are valid.
     pub fn map_pc_to_code_location(&self, pc: usize) -> Option<CodeLocation> {
         let statement_idx = StatementIdx(
             self.casm_debug_info
