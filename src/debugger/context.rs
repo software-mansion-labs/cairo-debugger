@@ -73,14 +73,8 @@ impl Context {
             return Some(entry.pc);
         }
 
-        // If we did not find a pc for the exact line,
-        // we need to find the next line that is greater than the input line.
-        // Then we take the pc of the previous Sierra statement.
-        if let Some((_next_line, entry)) = lines_data.range(line..).next() {
-            let target_idx = entry.statement_idx.saturating_sub(1);
-            return self.casm_debug_info.statement_to_pc.get(target_idx).copied();
-        }
-
+        // Some mappings may be missing, but for now we accept this.
+        // If a breakpoint is set on an unmapped line it will be treated as invalid.
         None
     }
 }
