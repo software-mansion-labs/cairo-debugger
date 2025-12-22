@@ -74,7 +74,7 @@ impl Context {
         }
 
         // Some mappings may be missing, but for now we accept this.
-        // If a breakpoint is set on an unmapped line it will be treated as invalid.
+        // If a breakpoint is set on an unmapped line, it will be treated as invalid.
         None
     }
 }
@@ -115,7 +115,11 @@ fn build_file_locations_map(
             lines_in_file
                 .entry(line)
                 .and_modify(|(existing_col, existing_entry)| {
-                    if col < *existing_col {
+                    // Update the entry if it is at a lower column, or at the same column with a lower PC.
+                    // The second condition ensures deterministic behavior.
+                    if col < *existing_col
+                        || (col == *existing_col && new_entry.pc < existing_entry.pc)
+                    {
                         *existing_col = col;
                         *existing_entry = new_entry;
                     }
