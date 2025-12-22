@@ -20,7 +20,7 @@ pub struct Context {
 
 pub struct CasmDebugInfo {
     /// Sierra statement index -> start CASM bytecode offset
-    statement_to_pc: Vec<usize>,
+    pub statement_to_pc: Vec<usize>,
 }
 
 struct FileCodeLocationsData {
