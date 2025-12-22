@@ -1,16 +1,17 @@
 use anyhow::{Result, bail};
-use cairo_lang_sierra::program::StatementIdx;
 use dap::events::{Event, StoppedEventBody};
 use dap::prelude::{Command, Request, ResponseBody};
 use dap::responses::{
     ContinueResponse, EvaluateResponse, ScopesResponse, SetBreakpointsResponse, StackTraceResponse,
     ThreadsResponse, VariablesResponse,
 };
-use dap::types::{Breakpoint, Capabilities, Source, StackFrame, StoppedEventReason, Thread};
+use dap::types::{Breakpoint, Capabilities, StoppedEventReason, Thread};
 use tracing::{error, trace};
 
 use crate::debugger::context::Context;
 use crate::debugger::state::State;
+
+mod stack_trace;
 
 pub struct HandlerResponse {
     pub response_body: ResponseBody,
@@ -130,23 +131,7 @@ pub fn handle_request(
             .into())
         }
         Command::StackTrace(_) => Ok(ResponseBody::StackTrace(StackTraceResponse {
-            stack_frames: vec![StackFrame {
-                id: 1,
-                name: "test".to_string(),
-                source: Some(Source {
-                    name: None,
-                    path: ctx
-                        .code_locations
-                        .statements_code_locations
-                        .get(&StatementIdx(1))
-                        .and_then(|locations| locations.first())
-                        .map(|val| val.0.0.clone()),
-                    ..Default::default()
-                }),
-                line: 1,
-                column: 1,
-                ..Default::default()
-            }],
+            stack_frames: vec![stack_trace::build_stack_frame(ctx, state.current_pc)],
             total_frames: Some(1),
         })
         .into()),

@@ -1,13 +1,14 @@
+use std::path::Path;
+
 use anyhow::Result;
 use cairo_vm::vm::vm_core::VirtualMachine;
-use camino::Utf8Path;
 use dap::events::ExitedEventBody;
 use dap::prelude::Event::{Exited, Terminated};
 use dap::prelude::Request;
 use tracing::error;
 
 use crate::connection::Connection;
-use crate::debugger::context::Context;
+use crate::debugger::context::{CasmDebugInfo, Context};
 use crate::debugger::state::State;
 
 mod context;
@@ -22,9 +23,12 @@ pub struct CairoDebugger {
 }
 
 impl CairoDebugger {
-    pub fn connect_and_initialize(sierra_path: &Utf8Path) -> Result<Self> {
+    pub fn connect_and_initialize(
+        sierra_path: &Path,
+        casm_debug_info: CasmDebugInfo,
+    ) -> Result<Self> {
         let connection = Connection::new()?;
-        let ctx = Context::new(sierra_path)?;
+        let ctx = Context::new(sierra_path, casm_debug_info)?;
 
         let mut debugger = Self { connection, ctx, state: State::new() };
         debugger.initialize()?;
@@ -42,7 +46,9 @@ impl CairoDebugger {
         Ok(())
     }
 
-    fn sync_with_vm(&mut self, _vm: &VirtualMachine) -> Result<()> {
+    fn sync_with_vm(&mut self, vm: &VirtualMachine) -> Result<()> {
+        self.state.current_pc = vm.get_pc().offset;
+
         while let Some(request) = self.connection.try_next_request()? {
             self.process_request(request)?;
 

@@ -3,11 +3,12 @@ use tracing::trace;
 pub struct State {
     configuration_done: bool,
     execution_stopped: bool,
+    pub current_pc: usize,
 }
 
 impl State {
     pub fn new() -> Self {
-        Self { configuration_done: false, execution_stopped: false }
+        Self { configuration_done: false, execution_stopped: false, current_pc: 0 }
     }
 
     pub fn is_configuration_done(&self) -> bool {
