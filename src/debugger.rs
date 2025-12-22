@@ -88,7 +88,7 @@ impl CairoDebugger {
                 reason: StoppedEventReason::Breakpoint,
                 thread_id: Some(0),
                 all_threads_stopped: Some(true),
-                hit_breakpoint_ids: Some(vec![0]), // TODO: Check if id is important here
+                hit_breakpoint_ids: None,
                 description: None,
                 preserve_focus_hint: None,
                 text: None,
