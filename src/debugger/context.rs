@@ -16,13 +16,13 @@ pub struct Context {
 }
 
 pub struct CasmDebugInfo {
-    // Sierra statement index -> start offset
+    /// Sierra statement index -> start CASM bytecode offset
     statement_to_pc: Vec<usize>,
 }
 
 impl Context {
     pub fn new(sierra_path: &Path, casm_debug_info: CasmDebugInfo) -> Result<Self> {
-        let root_path = get_project_root_path()?;
+        let root_path = get_project_root_path(sierra_path)?;
 
         let content = fs::read_to_string(sierra_path).expect("Failed to load sierra file");
         let sierra_program: ProgramArtifact = serde_json::from_str(&content)?;
@@ -51,10 +51,9 @@ impl Context {
 }
 
 // TODO(#50)
-fn get_project_root_path() -> Result<PathBuf> {
-    let current_dir = std::env::current_dir()?;
+fn get_project_root_path(sierra_path: &Path) -> Result<PathBuf> {
     Ok(MetadataCommand::new()
-        .current_dir(current_dir)
+        .current_dir(sierra_path.parent().expect("Compiled Sierra must be in target directory"))
         .inherit_stderr()
         .exec()
         .context("Failed to get project metadata from Scarb")?
