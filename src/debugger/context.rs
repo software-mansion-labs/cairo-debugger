@@ -24,13 +24,8 @@ pub struct CasmDebugInfo {
 }
 
 struct FileCodeLocationsData {
-    lines: BTreeMap<usize, StatementPc>,
-}
-
-#[derive(Copy, Clone)]
-struct StatementPc {
-    statement_idx: usize,
-    pc: usize,
+    /// Line number -> start CASM bytecode offset
+    lines: BTreeMap<usize, usize>,
 }
 
 impl Context {
@@ -69,8 +64,8 @@ impl Context {
         // In annotations lines are 0-indexed, but in the source code they are 1-indexed.
         let line = line.saturating_sub(1);
 
-        if let Some(entry) = lines_data.get(&line) {
-            return Some(entry.pc);
+        if let Some(pc) = lines_data.get(&line) {
+            return Some(*pc);
         }
 
         // Some mappings may be missing, but for now we accept this.
@@ -86,19 +81,10 @@ fn build_file_locations_map(
 ) -> HashMap<PathBuf, FileCodeLocationsData> {
     // Intermediate storage:
     // Path -> Line -> (min column, sierra statement index and pc)
-    let mut file_map: HashMap<PathBuf, BTreeMap<usize, (usize, StatementPc)>> = HashMap::new();
+    let mut file_map: HashMap<PathBuf, BTreeMap<usize, (usize, usize)>> = HashMap::new();
 
     for (statement_idx, locations) in &code_location_annotations.statements_code_locations {
-        let idx_val = statement_idx.0;
-        // Get the PC for the current statement.
-        // If the index is out of bounds, we skip it.
-        // It should not happen, just a sanity check.
-        let pc = match statement_to_pc.get(idx_val) {
-            Some(&pc) => pc,
-            None => continue,
-        };
-
-        let new_entry = StatementPc { statement_idx: idx_val, pc };
+        let pc = *statement_to_pc.get(statement_idx.0).expect("Invalid Sierra statement index");
 
         for loc in locations {
             let path_str = &loc.0.0;
@@ -117,14 +103,12 @@ fn build_file_locations_map(
                 .and_modify(|(existing_col, existing_entry)| {
                     // Update the entry if it is at a lower column, or at the same column with a lower PC.
                     // The second condition ensures deterministic behavior.
-                    if col < *existing_col
-                        || (col == *existing_col && new_entry.pc < existing_entry.pc)
-                    {
+                    if col < *existing_col || (col == *existing_col && pc < *existing_entry) {
                         *existing_col = col;
-                        *existing_entry = new_entry;
+                        *existing_entry = pc;
                     }
                 })
-                .or_insert((col, new_entry));
+                .or_insert((col, pc));
         }
     }
 
