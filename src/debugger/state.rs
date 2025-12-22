@@ -3,7 +3,7 @@ use std::path::Path;
 
 use tracing::{debug, trace};
 
-use crate::debugger::context::Context;
+use crate::debugger::context::{Context, Line};
 
 pub struct State {
     configuration_done: bool,
@@ -45,7 +45,7 @@ impl State {
         self.execution_stopped = false;
     }
 
-    pub fn set_breakpoint(&mut self, source: String, line: usize, ctx: &Context) {
+    pub fn set_breakpoint(&mut self, source: String, line: Line, ctx: &Context) {
         debug!("setting breakpoint for file: {:?}, line: {:?}", source, line);
 
         let pc = ctx.get_pc_for_line(Path::new(&source), line);

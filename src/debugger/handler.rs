@@ -8,7 +8,7 @@ use dap::responses::{
 use dap::types::{Breakpoint, Capabilities, StoppedEventReason, Thread};
 use tracing::{error, trace};
 
-use crate::debugger::context::Context;
+use crate::debugger::context::{Context, Line};
 use crate::debugger::state::State;
 
 mod stack_trace;
@@ -127,7 +127,8 @@ pub fn handle_request(
                             .path
                             .clone()
                             .ok_or_else(|| anyhow!("Source file path is missing"))?,
-                        bp.line as usize,
+                        // UI sends line numbers as 1-indexed, hence we subtract 1 here.
+                        Line::new((bp.line - 1) as usize),
                         ctx,
                     );
                     // For now accept every breakpoint as valid

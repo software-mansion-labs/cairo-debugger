@@ -25,7 +25,17 @@ pub struct CasmDebugInfo {
 
 struct FileCodeLocationsData {
     /// Line number -> start CASM bytecode offset
-    lines: BTreeMap<usize, usize>,
+    lines: BTreeMap<Line, usize>,
+}
+
+/// Line number in a file, 0-indexed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash, Ord, PartialOrd, Default)]
+pub struct Line(usize);
+
+impl Line {
+    pub fn new(line: usize) -> Self {
+        Self(line)
+    }
 }
 
 impl Context {
@@ -59,10 +69,8 @@ impl Context {
             .cloned()
     }
 
-    pub fn get_pc_for_line(&self, source: &Path, line: usize) -> Option<usize> {
+    pub fn get_pc_for_line(&self, source: &Path, line: Line) -> Option<usize> {
         let lines_data = &self.files_data.get(source)?.lines;
-        // In annotations lines are 0-indexed, but in the source code they are 1-indexed.
-        let line = line.saturating_sub(1);
 
         if let Some(pc) = lines_data.get(&line) {
             return Some(*pc);
@@ -81,7 +89,7 @@ fn build_file_locations_map(
 ) -> HashMap<PathBuf, FileCodeLocationsData> {
     // Intermediate storage:
     // Path -> Line -> (min column, sierra statement index and pc)
-    let mut file_map: HashMap<PathBuf, BTreeMap<usize, (usize, usize)>> = HashMap::new();
+    let mut file_map: HashMap<PathBuf, BTreeMap<Line, (usize, usize)>> = HashMap::new();
 
     for (statement_idx, locations) in &code_location_annotations.statements_code_locations {
         let pc = *statement_to_pc.get(statement_idx.0).expect("Invalid Sierra statement index");
@@ -91,7 +99,7 @@ fn build_file_locations_map(
             let path = PathBuf::from(path_str);
 
             let start_location = &loc.1.start;
-            let line = start_location.line.0;
+            let line = Line::new(start_location.line.0);
             let col = start_location.col.0;
 
             // Get or create the map for this specific file.
