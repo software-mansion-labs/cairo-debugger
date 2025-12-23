@@ -131,7 +131,6 @@ pub fn handle_request(
                         Line::new((bp.line - 1) as usize),
                         ctx,
                     );
-                    // For now accept every breakpoint as valid
                     response_bps.push(Breakpoint {
                         verified: is_valid,
                         source: Some(args.source.clone()),
