@@ -7,6 +7,9 @@ use cairo_annotations::annotations::TryFromDebugInfo;
 use cairo_annotations::annotations::coverage::{
     CodeLocation, CoverageAnnotationsV1 as SierraCodeLocations,
 };
+use cairo_annotations::annotations::profiler::{
+    FunctionName, ProfilerAnnotationsV1 as SierraFunctionNames,
+};
 use cairo_lang_sierra::program::{ProgramArtifact, StatementIdx};
 use scarb_metadata::MetadataCommand;
 
@@ -15,6 +18,7 @@ pub struct Context {
     pub root_path: PathBuf,
     casm_debug_info: CasmDebugInfo,
     code_locations: SierraCodeLocations,
+    function_names: SierraFunctionNames,
     files_data: HashMap<PathBuf, FileCodeLocationsData>,
 }
 
@@ -48,25 +52,27 @@ impl Context {
             .debug_info
             .ok_or_else(|| anyhow!("debug_info must be present in compiled sierra"))?;
         let code_locations = SierraCodeLocations::try_from_debug_info(&debug_info)?;
+        let function_names = SierraFunctionNames::try_from_debug_info(&debug_info)?;
         let files_data =
             build_file_locations_map(&casm_debug_info.statement_to_pc, &code_locations);
 
-        Ok(Self { root_path, code_locations, casm_debug_info, files_data })
+        Ok(Self { root_path, code_locations, function_names, casm_debug_info, files_data })
     }
 
     pub fn map_pc_to_code_location(&self, pc: usize) -> Option<CodeLocation> {
-        let statement_idx = StatementIdx(
-            self.casm_debug_info
-                .statement_to_pc
-                .partition_point(|&offset| offset <= pc)
-                .saturating_sub(1),
-        );
-
+        let statement_idx = self.map_pc_to_statement(pc);
         self.code_locations
             .statements_code_locations
             .get(&statement_idx)
-            .and_then(|locations| locations.first())
-            .cloned()
+            .and_then(|locations| locations.first().cloned())
+    }
+
+    pub fn map_pc_to_function_name(&self, pc: usize) -> Option<FunctionName> {
+        let statement_idx = self.map_pc_to_statement(pc);
+        self.function_names
+            .statements_functions
+            .get(&statement_idx)
+            .and_then(|locations| locations.first().cloned())
     }
 
     pub fn get_pc_for_line(&self, source: &Path, line: Line) -> Option<usize> {
@@ -79,6 +85,15 @@ impl Context {
         // Some mappings may be missing, but for now we accept this.
         // If a breakpoint is set on an unmapped line, it will be treated as invalid.
         None
+    }
+
+    fn map_pc_to_statement(&self, pc: usize) -> StatementIdx {
+        StatementIdx(
+            self.casm_debug_info
+                .statement_to_pc
+                .partition_point(|&offset| offset <= pc)
+                .saturating_sub(1),
+        )
     }
 }
 

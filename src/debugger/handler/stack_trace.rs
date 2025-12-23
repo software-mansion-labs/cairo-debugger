@@ -9,6 +9,9 @@ pub fn build_stack_frame(ctx: &Context, pc: usize) -> StackFrame {
     match ctx.map_pc_to_code_location(pc) {
         Some(CodeLocation(source_file, code_span, _)) => {
             let file_path = Path::new(&source_file.0);
+            let name =
+                ctx.map_pc_to_function_name(pc).map(|name| name.0).unwrap_or("test".to_string());
+
             let is_user_code = file_path.starts_with(&ctx.root_path);
             let presentation_hint = Some(if is_user_code {
                 StackFramePresentationhint::Normal
@@ -23,7 +26,7 @@ pub fn build_stack_frame(ctx: &Context, pc: usize) -> StackFrame {
 
             StackFrame {
                 id: 1,
-                name: "test".to_string(),
+                name,
                 source: Some(Source {
                     name: None,
                     path: Some(source_file.0),
