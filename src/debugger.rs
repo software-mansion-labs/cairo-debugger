@@ -88,6 +88,8 @@ impl CairoDebugger {
                 reason: StoppedEventReason::Breakpoint,
                 thread_id: Some(0),
                 all_threads_stopped: Some(true),
+                // Breakpoint IDs are not set in `SetBreakpointsResponse`, hence we set them to `None` also here.
+                // This would matter if we supported multiple breakpoints per line, but currently we don't.
                 hit_breakpoint_ids: None,
                 description: None,
                 preserve_focus_hint: None,

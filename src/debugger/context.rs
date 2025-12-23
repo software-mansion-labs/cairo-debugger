@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 
@@ -25,7 +25,7 @@ pub struct CasmDebugInfo {
 
 struct FileCodeLocationsData {
     /// Line number -> start CASM bytecode offset
-    lines: BTreeMap<Line, usize>,
+    lines: HashMap<Line, usize>,
 }
 
 /// Line number in a file, 0-indexed.
@@ -88,8 +88,8 @@ fn build_file_locations_map(
     code_location_annotations: &SierraCodeLocations,
 ) -> HashMap<PathBuf, FileCodeLocationsData> {
     // Intermediate storage:
-    // Path -> Line -> (min column, sierra statement index and pc)
-    let mut file_map: HashMap<PathBuf, BTreeMap<Line, (usize, usize)>> = HashMap::new();
+    // Path -> Line -> (min column, pc)
+    let mut file_map: HashMap<PathBuf, HashMap<Line, (usize, usize)>> = HashMap::new();
 
     for (statement_idx, locations) in &code_location_annotations.statements_code_locations {
         let pc = *statement_to_pc.get(statement_idx.0).expect("Invalid Sierra statement index");
@@ -110,7 +110,7 @@ fn build_file_locations_map(
                 .entry(line)
                 .and_modify(|(existing_col, existing_entry)| {
                     // Update the entry if it is at a lower column, or at the same column with a lower PC.
-                    // The second condition ensures deterministic behavior.
+                    // The second condition ensures deterministic behavior - selection of the lowest appropriate pc.
                     if col < *existing_col || (col == *existing_col && pc < *existing_entry) {
                         *existing_col = col;
                         *existing_entry = pc;
@@ -128,7 +128,7 @@ fn build_file_locations_map(
             let clean_lines = lines_map
                 .into_iter()
                 .map(|(line, (_col, stmt))| (line, stmt))
-                .collect::<BTreeMap<_, _>>();
+                .collect::<HashMap<_, _>>();
 
             (path, FileCodeLocationsData { lines: clean_lines })
         })
