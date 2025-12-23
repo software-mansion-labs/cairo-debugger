@@ -10,6 +10,16 @@ pub fn build_stack_frame(ctx: &Context, pc: usize) -> StackFrame {
         Some(CodeLocation(source_file, code_span, _)) => {
             let file_path = Path::new(&source_file.0);
             let is_user_code = file_path.starts_with(&ctx.root_path);
+            let presentation_hint = Some(if is_user_code {
+                StackFramePresentationhint::Normal
+            } else {
+                StackFramePresentationhint::Subtle
+            });
+
+            // Annotations from debug info are 0-indexed.
+            // UI expects 1-indexed, hence +1 below.
+            let line = (code_span.start.line.0 + 1) as i64;
+            let column = (code_span.start.col.0 + 1) as i64;
 
             StackFrame {
                 id: 1,
@@ -19,15 +29,9 @@ pub fn build_stack_frame(ctx: &Context, pc: usize) -> StackFrame {
                     path: Some(source_file.0),
                     ..Default::default()
                 }),
-                // Annotations from debug info are 0-indexed.
-                // UI expects 1-indexed, hence +1 below.
-                line: (code_span.start.line.0 + 1) as i64,
-                column: (code_span.start.col.0 + 1) as i64,
-                presentation_hint: Some(if is_user_code {
-                    StackFramePresentationhint::Normal
-                } else {
-                    StackFramePresentationhint::Subtle
-                }),
+                line,
+                column,
+                presentation_hint,
                 ..Default::default()
             }
         }
