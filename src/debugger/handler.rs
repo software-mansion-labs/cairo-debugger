@@ -121,12 +121,17 @@ pub fn handle_request(
         Command::SetBreakpoints(args) => {
             let mut response_bps = Vec::new();
             if let Some(requested_bps) = &args.breakpoints {
+                let source_path = args
+                    .source
+                    .path
+                    .clone()
+                    .ok_or_else(|| anyhow!("Source file path is missing"))?;
+
+                state.clear_breakpoints(&source_path);
+
                 for bp in requested_bps {
                     let is_valid = state.verify_and_set_breakpoint(
-                        args.source
-                            .path
-                            .clone()
-                            .ok_or_else(|| anyhow!("Source file path is missing"))?,
+                        source_path.clone(),
                         // UI sends line numbers as 1-indexed, hence we subtract 1 here.
                         Line::new((bp.line - 1) as usize),
                         ctx,

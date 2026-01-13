@@ -1,14 +1,16 @@
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
 use tracing::{debug, trace};
 
 use crate::debugger::context::{Context, Line};
 
+type SourcePath = String;
+
 pub struct State {
     configuration_done: bool,
     execution_stopped: bool,
-    pub breakpoints: HashSet<usize>,
+    pub breakpoints: HashMap<SourcePath, HashSet<usize>>,
     pub current_pc: usize,
 }
 
@@ -17,7 +19,7 @@ impl State {
         Self {
             configuration_done: false,
             execution_stopped: false,
-            breakpoints: HashSet::default(),
+            breakpoints: HashMap::default(),
             current_pc: 0,
         }
     }
@@ -45,15 +47,25 @@ impl State {
         self.execution_stopped = false;
     }
 
-    pub fn verify_and_set_breakpoint(&mut self, source: String, line: Line, ctx: &Context) -> bool {
+    pub fn verify_and_set_breakpoint(
+        &mut self,
+        source: SourcePath,
+        line: Line,
+        ctx: &Context,
+    ) -> bool {
         let pc = ctx.get_pc_for_line(Path::new(&source), line);
 
         if let Some(pc) = pc {
             debug!("Setting breakpoint for file: {:?}, line: {:?}", source, line);
-            self.breakpoints.insert(pc);
+            self.breakpoints.entry(source).or_default().insert(pc);
+
             return true;
         }
 
         false
+    }
+
+    pub fn clear_breakpoints(&mut self, source: &SourcePath) {
+        self.breakpoints.remove(source);
     }
 }

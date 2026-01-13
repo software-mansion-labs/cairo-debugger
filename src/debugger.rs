@@ -82,7 +82,13 @@ impl CairoDebugger {
     }
 
     fn maybe_handle_breakpoint_hit(&mut self) -> Result<()> {
-        if self.state.breakpoints.contains(&self.state.current_pc) {
+        if self
+            .state
+            .breakpoints
+            .values()
+            .flat_map(|pcs| pcs.iter())
+            .any(|pc| *pc == self.state.current_pc)
+        {
             self.state.stop_execution();
             self.connection.send_event(Event::Stopped(StoppedEventBody {
                 reason: StoppedEventReason::Breakpoint,
