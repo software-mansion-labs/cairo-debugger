@@ -1,10 +1,10 @@
 use std::path::Path;
 
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use cairo_vm::vm::vm_core::VirtualMachine;
 use dap::events::{Event, ExitedEventBody, StoppedEventBody};
 use dap::prelude::Event::{Exited, Terminated};
-use dap::prelude::Request;
+use dap::prelude::{Request, ResponseBody};
 use dap::types::StoppedEventReason;
 use tracing::error;
 
@@ -73,10 +73,17 @@ impl CairoDebugger {
 
     fn process_request(&mut self, request: Request) -> Result<()> {
         let response = handler::handle_request(&request, &mut self.state, &self.ctx)?;
+        let disconnected = matches!(response.response_body, ResponseBody::Disconnect);
+
         if let Some(event) = response.event {
             self.connection.send_event(event)?;
         }
         self.connection.send_success(request, response.response_body)?;
+
+        if disconnected {
+            // Returning an error is the easiest way to get the process to exit.
+            return Err(anyhow!("Disconnect request received"));
+        }
 
         Ok(())
     }
