@@ -199,8 +199,6 @@ pub fn handle_request(
             .into())
         }
 
-        Command::Disconnect(_) => {
-            todo!()
-        }
+        Command::Disconnect(_) => Ok(ResponseBody::Disconnect.into()),
     }
 }
