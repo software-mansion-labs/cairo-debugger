@@ -1,9 +1,9 @@
+use crate::debugger::call_stack::CallStack;
+use crate::debugger::context::{Context, Line};
+use cairo_vm::vm::vm_core::VirtualMachine;
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
-
 use tracing::{debug, trace};
-
-use crate::debugger::context::{Context, Line};
 
 type SourcePath = String;
 
@@ -12,6 +12,7 @@ pub struct State {
     execution_stopped: bool,
     pub breakpoints: HashMap<SourcePath, HashSet<usize>>,
     pub current_pc: usize,
+    pub call_stack: CallStack,
 }
 
 impl State {
@@ -21,7 +22,21 @@ impl State {
             execution_stopped: false,
             breakpoints: HashMap::default(),
             current_pc: 0,
+            call_stack: CallStack::new(),
         }
+    }
+
+    pub fn update_state(&mut self, vm: &VirtualMachine, ctx: &Context) {
+        self.update_current_pc(vm);
+        self.update_stack_frames(ctx);
+    }
+
+    fn update_current_pc(&mut self, vm: &VirtualMachine) {
+        self.current_pc = vm.get_pc().offset;
+    }
+
+    fn update_stack_frames(&mut self, ctx: &Context) {
+        self.call_stack.update(self.current_pc, ctx)
     }
 
     pub fn is_configuration_done(&self) -> bool {

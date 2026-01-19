@@ -12,6 +12,7 @@ use crate::connection::Connection;
 use crate::debugger::context::{CasmDebugInfo, Context};
 use crate::debugger::state::State;
 
+mod call_stack;
 pub mod context;
 mod handler;
 mod state;
@@ -48,7 +49,7 @@ impl CairoDebugger {
     }
 
     fn sync_with_vm(&mut self, vm: &VirtualMachine) -> Result<()> {
-        self.state.current_pc = vm.get_pc().offset;
+        self.state.update_state(vm, &self.ctx);
         self.maybe_handle_breakpoint_hit()?;
 
         while let Some(request) = self.connection.try_next_request()? {
