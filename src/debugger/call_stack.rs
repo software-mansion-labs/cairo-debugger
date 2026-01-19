@@ -1,11 +1,33 @@
+use std::iter::once;
 use std::path::Path;
 
 use cairo_annotations::annotations::coverage::CodeLocation;
-use dap::types::{Source, StackFrame, StackFramePresentationhint};
+use dap::types::StackFrame;
+use dap::types::{Source, StackFramePresentationhint};
 
 use crate::debugger::context::Context;
 
-pub fn build_stack_frame(ctx: &Context, pc: usize) -> StackFrame {
+#[derive(Default)]
+pub struct CallStack {
+    call_frames: Vec<StackFrame>,
+}
+
+impl CallStack {
+    pub fn update(&mut self, current_pc: usize, ctx: &Context) {
+        if ctx.is_function_call_statement(current_pc) {
+            self.call_frames.push(build_stack_frame(ctx, current_pc));
+        } else if ctx.is_return_statement(current_pc) {
+            self.call_frames.pop();
+        }
+    }
+
+    pub fn get_frames(&self, current_pc: usize, ctx: &Context) -> Vec<StackFrame> {
+        let current_frame = build_stack_frame(ctx, current_pc);
+        self.call_frames.iter().cloned().chain(once(current_frame)).collect()
+    }
+}
+
+fn build_stack_frame(ctx: &Context, pc: usize) -> StackFrame {
     match ctx.map_pc_to_code_location(pc) {
         Some(CodeLocation(source_file, code_span, _)) => {
             let file_path = Path::new(&source_file.0);
