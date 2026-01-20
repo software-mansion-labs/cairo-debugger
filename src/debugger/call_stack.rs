@@ -23,7 +23,8 @@ impl CallStack {
 
     pub fn get_frames(&self, current_pc: usize, ctx: &Context) -> Vec<StackFrame> {
         let current_frame = build_stack_frame(ctx, current_pc);
-        self.call_frames.iter().cloned().chain(once(current_frame)).collect()
+        // DAP expects frames to start from the most nested element.
+        self.call_frames.iter().cloned().chain(once(current_frame)).rev().collect()
     }
 }
 
