@@ -13,6 +13,7 @@ pub struct State {
     configuration_done: bool,
     execution_stopped: bool,
     pub breakpoints: HashMap<SourcePath, HashSet<usize>>,
+    // TODO add current_statement_idx
     pub current_pc: usize,
     pub call_stack: CallStack,
 }
@@ -30,6 +31,7 @@ impl State {
 
     pub fn update_state(&mut self, vm: &VirtualMachine, ctx: &Context) {
         self.current_pc = vm.get_pc().offset;
+        assert!(vm.get_pc().segment_index == 0);
         self.call_stack.update(self.current_pc, ctx)
     }
 
