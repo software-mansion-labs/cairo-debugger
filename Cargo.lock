@@ -30,6 +30,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 
 [[package]]
+name = "arbitrary"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c3d036a3c4ab069c7b410a2ce876bd74808d2d0888a82667669f8e783a898bf1"
+dependencies = [
+ "derive_arbitrary",
+]
+
+[[package]]
 name = "arrayvec"
 version = "0.7.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -180,6 +189,7 @@ dependencies = [
  "dap",
  "scarb-metadata",
  "serde_json",
+ "starknet-types-core",
  "tracing",
 ]
 
@@ -320,9 +330,10 @@ dependencies = [
 [[package]]
 name = "cairo-vm"
 version = "2.5.0"
-source = "git+https://github.com/software-mansion-labs/cairo-vm?rev=e8183f4#e8183f45cbbb723a7167450599fa586aab8b416a"
+source = "git+https://github.com/software-mansion-labs/cairo-vm?rev=4675b55df938162dbefb546242bafaf7d2d51efd#4675b55df938162dbefb546242bafaf7d2d51efd"
 dependencies = [
  "anyhow",
+ "arbitrary",
  "bincode",
  "bitvec",
  "generic-array",
@@ -514,6 +525,17 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 1.0.109",
+]
+
+[[package]]
+name = "derive_arbitrary"
+version = "1.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1e567bd82dcff979e4b03460c307b3cdc9e96fde3d73bed1496d2bc75d9dd62a"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
 ]
 
 [[package]]
@@ -1690,6 +1712,7 @@ version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90d23b1bc014ee4cce40056ab3114bcbcdc2dbc1e845bbfb1f8bd0bab63507d4"
 dependencies = [
+ "arbitrary",
  "blake2",
  "digest",
  "lambdaworks-crypto",
