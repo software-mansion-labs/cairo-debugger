@@ -11,8 +11,6 @@ use tracing::{error, trace};
 use crate::debugger::context::{Context, Line};
 use crate::debugger::state::State;
 
-mod stack_trace;
-
 pub struct HandlerResponse {
     pub response_body: ResponseBody,
     pub event: Option<Event>,
@@ -155,11 +153,11 @@ pub fn handle_request(
             })
             .into())
         }
-        Command::StackTrace(_) => Ok(ResponseBody::StackTrace(StackTraceResponse {
-            stack_frames: vec![stack_trace::build_stack_frame(ctx, state.current_pc)],
-            total_frames: Some(1),
-        })
-        .into()),
+        Command::StackTrace(_) => {
+            let stack_frames = state.call_stack.get_frames(state.current_pc, ctx);
+            let total_frames = Some(stack_frames.len() as i64);
+            Ok(ResponseBody::StackTrace(StackTraceResponse { stack_frames, total_frames }).into())
+        }
         Command::Scopes(_) => {
             // Return no scopes.
             Ok(ResponseBody::Scopes(ScopesResponse { scopes: vec![] }).into())

@@ -10,7 +10,9 @@ use cairo_annotations::annotations::coverage::{
 use cairo_annotations::annotations::profiler::{
     FunctionName, ProfilerAnnotationsV1 as SierraFunctionNames,
 };
-use cairo_lang_sierra::program::{ProgramArtifact, StatementIdx};
+use cairo_lang_sierra::extensions::core::{CoreConcreteLibfunc, CoreLibfunc, CoreType};
+use cairo_lang_sierra::program::{Program, ProgramArtifact, Statement, StatementIdx};
+use cairo_lang_sierra::program_registry::ProgramRegistry;
 use scarb_metadata::MetadataCommand;
 
 /// Struct that holds all the initial data needed for the debugger during execution.
@@ -20,6 +22,8 @@ pub struct Context {
     code_locations: SierraCodeLocations,
     function_names: SierraFunctionNames,
     files_data: HashMap<PathBuf, FileCodeLocationsData>,
+    program: Program,
+    sierra_program_registry: ProgramRegistry<CoreType, CoreLibfunc>,
 }
 
 pub struct CasmDebugInfo {
@@ -48,6 +52,11 @@ impl Context {
 
         let content = fs::read_to_string(sierra_path).expect("Failed to load sierra file");
         let sierra_program: ProgramArtifact = serde_json::from_str(&content)?;
+        let program = sierra_program.program;
+
+        let sierra_program_registry =
+            ProgramRegistry::new(&program).expect("creating program registry failed");
+
         let debug_info = sierra_program
             .debug_info
             .ok_or_else(|| anyhow!("debug_info must be present in compiled sierra"))?;
@@ -56,11 +65,19 @@ impl Context {
         let files_data =
             build_file_locations_map(&casm_debug_info.statement_to_pc, &code_locations);
 
-        Ok(Self { root_path, code_locations, function_names, casm_debug_info, files_data })
+        Ok(Self {
+            root_path,
+            code_locations,
+            function_names,
+            casm_debug_info,
+            files_data,
+            program,
+            sierra_program_registry,
+        })
     }
 
     pub fn map_pc_to_code_location(&self, pc: usize) -> Option<CodeLocation> {
-        let statement_idx = self.map_pc_to_statement(pc);
+        let statement_idx = self.map_pc_to_statement_idx(pc);
         self.code_locations
             .statements_code_locations
             .get(&statement_idx)
@@ -68,7 +85,7 @@ impl Context {
     }
 
     pub fn map_pc_to_function_name(&self, pc: usize) -> Option<FunctionName> {
-        let statement_idx = self.map_pc_to_statement(pc);
+        let statement_idx = self.map_pc_to_statement_idx(pc);
         self.function_names
             .statements_functions
             .get(&statement_idx)
@@ -87,7 +104,28 @@ impl Context {
         None
     }
 
-    fn map_pc_to_statement(&self, pc: usize) -> StatementIdx {
+    pub fn is_return_statement(&self, pc: usize) -> bool {
+        matches!(self.map_pc_to_statement(pc), Statement::Return(_))
+    }
+
+    pub fn is_function_call_statement(&self, pc: usize) -> bool {
+        match self.map_pc_to_statement(pc) {
+            Statement::Invocation(invocation) => {
+                matches!(
+                    self.sierra_program_registry.get_libfunc(&invocation.libfunc_id),
+                    Ok(CoreConcreteLibfunc::FunctionCall(_))
+                )
+            }
+            Statement::Return(_) => false,
+        }
+    }
+    fn map_pc_to_statement(&self, pc: usize) -> &Statement {
+        let statement_idx = self.map_pc_to_statement_idx(pc);
+
+        self.program.statements.get(statement_idx.0).expect("statement not found in program")
+    }
+
+    fn map_pc_to_statement_idx(&self, pc: usize) -> StatementIdx {
         StatementIdx(
             self.casm_debug_info
                 .statement_to_pc
