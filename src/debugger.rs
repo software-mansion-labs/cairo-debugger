@@ -56,6 +56,8 @@ impl CairoDebugger {
 
     fn sync_with_vm(&mut self, vm: &VirtualMachine) -> Result<()> {
         self.state.update_state(vm, &self.ctx);
+        self.ctx.print_values_of_variables(self.state.current_statement_idx, vm);
+
         self.maybe_handle_breakpoint_hit()?;
 
         while let Some(request) = self.connection.try_next_request()? {
