@@ -144,8 +144,36 @@ fn build_file_locations_map(
     // Path -> Line -> (min column, pc)
     let mut file_map: HashMap<PathBuf, HashMap<Line, (usize, usize)>> = HashMap::new();
 
-    for (statement_idx, locations) in &code_location_annotations.statements_code_locations {
-        let pc = *statement_to_pc.get(statement_idx.0).expect("Invalid Sierra statement index");
+    for (StatementIdx(idx), locations) in &code_location_annotations.statements_code_locations {
+        let pc = *statement_to_pc.get(*idx).expect("Invalid Sierra statement index");
+        // If the next sierra statement maps to the same pc, it means the compilation of the current
+        // statement did not produce any CASM instructions.
+        //
+        // We should not take such statements into account when creating a line -> pc map, since
+        // there is no actual pc that corresponds to a line which corresponds to such a statement.
+        //
+        // An example:
+        // ```
+        // fn main() -> felt252 {
+        //   let x = 5;
+        //   let y = @x; // <- The Line
+        //   x + 5
+        // }
+        // The Line compiles to (with optimizations turned off during Cairo->Sierra compilation)
+        // to a statement `snapshot_take<felt252>([0]) -> ([1], [2]);. This libfunc takes
+        // a sierra variable of id 0 and returns its original value and its duplicate, which are
+        // now "in" sierra vars of id 1 and 2.
+        // Even though the statement maps to some Cairo code in coverage mappings,
+        // it does not compile to any CASM instructions directly - check the link below.
+        // https://github.com/starkware-libs/cairo/blob/27f9d1a3fcd00993ff43016ce9579e36064e5266/crates/cairo-lang-sierra-to-casm/src/invocations/mod.rs#L718
+        // TODO(#61): compare `start_offset` and `end_offset` of current statement instead once USC
+        //  (and thus snforge) starts providing full `CairoProgramDebugInfo`.
+        if statement_to_pc
+            .get(idx + 1)
+            .is_some_and(|pc_of_next_statement| *pc_of_next_statement == pc)
+        {
+            continue;
+        };
 
         for loc in locations {
             let path_str = &loc.0.0;
