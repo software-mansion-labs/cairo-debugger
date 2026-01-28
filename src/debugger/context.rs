@@ -76,16 +76,29 @@ impl Context {
         })
     }
 
-    pub fn map_pc_to_code_location(&self, pc: usize) -> Option<CodeLocation> {
-        let statement_idx = self.map_pc_to_statement_idx(pc);
+    pub fn statement_idx_for_pc(&self, pc: usize) -> StatementIdx {
+        StatementIdx(
+            self.casm_debug_info
+                .statement_to_pc
+                .partition_point(|&offset| offset <= pc)
+                .saturating_sub(1),
+        )
+    }
+
+    pub fn code_location_for_statement_idx(
+        &self,
+        statement_idx: StatementIdx,
+    ) -> Option<CodeLocation> {
         self.code_locations
             .statements_code_locations
             .get(&statement_idx)
             .and_then(|locations| locations.first().cloned())
     }
 
-    pub fn map_pc_to_function_name(&self, pc: usize) -> Option<FunctionName> {
-        let statement_idx = self.map_pc_to_statement_idx(pc);
+    pub fn function_name_for_statement_idx(
+        &self,
+        statement_idx: StatementIdx,
+    ) -> Option<FunctionName> {
         self.function_names
             .statements_functions
             .get(&statement_idx)
@@ -99,17 +112,16 @@ impl Context {
             return Some(*pc);
         }
 
-        // Some mappings may be missing, but for now we accept this.
         // If a breakpoint is set on an unmapped line, it will be treated as invalid.
         None
     }
 
-    pub fn is_return_statement(&self, pc: usize) -> bool {
-        matches!(self.map_pc_to_statement(pc), Statement::Return(_))
+    pub fn is_return_statement(&self, statement_idx: StatementIdx) -> bool {
+        matches!(self.statement_idx_to_statement(statement_idx), Statement::Return(_))
     }
 
-    pub fn is_function_call_statement(&self, pc: usize) -> bool {
-        match self.map_pc_to_statement(pc) {
+    pub fn is_function_call_statement(&self, statement_idx: StatementIdx) -> bool {
+        match self.statement_idx_to_statement(statement_idx) {
             Statement::Invocation(invocation) => {
                 matches!(
                     self.sierra_program_registry.get_libfunc(&invocation.libfunc_id),
@@ -119,19 +131,9 @@ impl Context {
             Statement::Return(_) => false,
         }
     }
-    fn map_pc_to_statement(&self, pc: usize) -> &Statement {
-        let statement_idx = self.map_pc_to_statement_idx(pc);
 
-        self.program.statements.get(statement_idx.0).expect("statement not found in program")
-    }
-
-    fn map_pc_to_statement_idx(&self, pc: usize) -> StatementIdx {
-        StatementIdx(
-            self.casm_debug_info
-                .statement_to_pc
-                .partition_point(|&offset| offset <= pc)
-                .saturating_sub(1),
-        )
+    fn statement_idx_to_statement(&self, statement_idx: StatementIdx) -> &Statement {
+        &self.program.statements[statement_idx.0]
     }
 }
 
