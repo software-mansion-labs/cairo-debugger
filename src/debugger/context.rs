@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::fs;
+use std::ops::Not;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as AnyhowContext, Result, anyhow};
@@ -31,9 +32,10 @@ pub struct CasmDebugInfo {
     pub statement_to_pc: Vec<usize>,
 }
 
+/// A map that stores a vector of ***hittable*** Sierra statement indexes for each line in a file.
+#[derive(Default)]
 struct FileCodeLocationsData {
-    /// Line number -> start CASM bytecode offset
-    lines: HashMap<Line, usize>,
+    lines: HashMap<Line, Vec<StatementIdx>>,
 }
 
 /// Line number in a file, 0-indexed.
@@ -62,8 +64,7 @@ impl Context {
             .ok_or_else(|| anyhow!("debug_info must be present in compiled sierra"))?;
         let code_locations = SierraCodeLocations::try_from_debug_info(&debug_info)?;
         let function_names = SierraFunctionNames::try_from_debug_info(&debug_info)?;
-        let files_data =
-            build_file_locations_map(&casm_debug_info.statement_to_pc, &code_locations);
+        let files_data = build_file_locations_map(&casm_debug_info, &code_locations);
 
         Ok(Self {
             root_path,
@@ -105,15 +106,12 @@ impl Context {
             .and_then(|locations| locations.first().cloned())
     }
 
-    pub fn get_pc_for_line(&self, source: &Path, line: Line) -> Option<usize> {
-        let lines_data = &self.files_data.get(source)?.lines;
-
-        if let Some(pc) = lines_data.get(&line) {
-            return Some(*pc);
-        }
-
-        // If a breakpoint is set on an unmapped line, it will be treated as invalid.
-        None
+    pub fn statement_idxs_for_breakpoint(
+        &self,
+        source: &Path,
+        line: Line,
+    ) -> Option<&Vec<StatementIdx>> {
+        self.files_data.get(source)?.lines.get(&line)
     }
 
     pub fn is_return_statement(&self, statement_idx: StatementIdx) -> bool {
@@ -137,85 +135,54 @@ impl Context {
     }
 }
 
-/// Builds a map to store Sierra statement index and start offset for each file and line.
 fn build_file_locations_map(
-    statement_to_pc: &[usize],
+    casm_debug_info: &CasmDebugInfo,
     code_location_annotations: &SierraCodeLocations,
 ) -> HashMap<PathBuf, FileCodeLocationsData> {
-    // Intermediate storage:
-    // Path -> Line -> (min column, pc)
-    let mut file_map: HashMap<PathBuf, HashMap<Line, (usize, usize)>> = HashMap::new();
+    let mut file_map: HashMap<_, FileCodeLocationsData> = HashMap::new();
 
-    for (StatementIdx(idx), locations) in &code_location_annotations.statements_code_locations {
-        let pc = *statement_to_pc.get(*idx).expect("Invalid Sierra statement index");
-        // If the next sierra statement maps to the same pc, it means the compilation of the current
-        // statement did not produce any CASM instructions.
-        //
-        // We should not take such statements into account when creating a line -> pc map, since
-        // there is no actual pc that corresponds to a line which corresponds to such a statement.
-        //
-        // An example:
-        // ```
-        // fn main() -> felt252 {
-        //   let x = 5;
-        //   let y = @x; // <- The Line
-        //   x + 5
-        // }
-        // The Line compiles to (with optimizations turned off during Cairo->Sierra compilation)
-        // to a statement `snapshot_take<felt252>([0]) -> ([1], [2]);. This libfunc takes
-        // a sierra variable of id 0 and returns its original value and its duplicate, which are
-        // now "in" sierra vars of id 1 and 2.
-        // Even though the statement maps to some Cairo code in coverage mappings,
-        // it does not compile to any CASM instructions directly - check the link below.
-        // https://github.com/starkware-libs/cairo/blob/27f9d1a3fcd00993ff43016ce9579e36064e5266/crates/cairo-lang-sierra-to-casm/src/invocations/mod.rs#L718
-        // TODO(#61): compare `start_offset` and `end_offset` of current statement instead once USC
-        //  (and thus snforge) starts providing full `CairoProgramDebugInfo`.
-        if statement_to_pc
-            .get(idx + 1)
-            .is_some_and(|pc_of_next_statement| *pc_of_next_statement == pc)
-        {
-            continue;
-        };
+    let hittable_statements_code_locations =
+        code_location_annotations.statements_code_locations.iter().filter(|(statement_idx, _)| {
+            let statement_offset = casm_debug_info.statement_to_pc[statement_idx.0];
+            let next_statement_offset = casm_debug_info.statement_to_pc.get(statement_idx.0 + 1);
 
+            // If the next sierra statement maps to the same pc, it means the compilation of the
+            // current statement did not produce any CASM instructions.
+            // Because of that there is no actual pc that corresponds to such a statement -
+            // and therefore the statement is not hittable.
+            //
+            // An example:
+            // ```
+            // fn main() -> felt252 {
+            //   let x = 5;
+            //   let y = @x; // <- The Line
+            //   x + 5
+            // }
+            // The Line compiles to (with optimizations turned off during Cairo->Sierra compilation)
+            // to a statement `snapshot_take<felt252>([0]) -> ([1], [2]);. This libfunc takes
+            // a sierra variable of id 0 and returns its original value and its duplicate, which are
+            // now "in" sierra vars of id 1 and 2.
+            // Even though the statement maps to some Cairo code in coverage mappings,
+            // it does not compile to any CASM instructions directly - check the link below.
+            // https://github.com/starkware-libs/cairo/blob/27f9d1a3fcd00993ff43016ce9579e36064e5266/crates/cairo-lang-sierra-to-casm/src/invocations/mod.rs#L718
+            // TODO(#61): compare `start_offset` and `end_offset` of current statement instead once USC
+            //  (and thus snforge) starts providing full `CairoProgramDebugInfo` + update the comment.
+            next_statement_offset.is_some_and(|offset| *offset == statement_offset).not()
+        });
+
+    for (statement_idx, locations) in hittable_statements_code_locations {
         for loc in locations {
             let path_str = &loc.0.0;
             let path = PathBuf::from(path_str);
 
             let start_location = &loc.1.start;
             let line = Line::new(start_location.line.0);
-            let col = start_location.col.0;
 
-            // Get or create the map for this specific file.
-            let lines_in_file = file_map.entry(path).or_default();
-
-            // Check if we already have data for this line.
-            lines_in_file
-                .entry(line)
-                .and_modify(|(existing_col, existing_entry)| {
-                    // Update the entry if it is at a lower column, or at the same column with a lower PC.
-                    // The second condition ensures deterministic behavior - selection of the lowest appropriate pc.
-                    if col < *existing_col || (col == *existing_col && pc < *existing_entry) {
-                        *existing_col = col;
-                        *existing_entry = pc;
-                    }
-                })
-                .or_insert((col, pc));
+            file_map.entry(path).or_default().lines.entry(line).or_default().push(*statement_idx);
         }
     }
 
-    // Transform the intermediate map into the final output format,
-    // removing the column information as it is no longer necessary.
     file_map
-        .into_iter()
-        .map(|(path, lines_map)| {
-            let clean_lines = lines_map
-                .into_iter()
-                .map(|(line, (_col, stmt))| (line, stmt))
-                .collect::<HashMap<_, _>>();
-
-            (path, FileCodeLocationsData { lines: clean_lines })
-        })
-        .collect()
 }
 
 // TODO(#50)
