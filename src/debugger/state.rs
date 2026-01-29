@@ -32,6 +32,13 @@ impl State {
     pub fn update_state(&mut self, vm: &VirtualMachine, ctx: &Context) {
         let current_pc = vm.get_pc();
 
+        if current_pc.segment_index != 0 {
+            // We cannot map pc to a sierra statement in such a case since we are before relocation.
+            // Just stay at the previous pc.
+            debug!("Skipping updating state for instruction with pc={current_pc}");
+            return;
+        }
+
         self.current_statement_idx = ctx.statement_idx_for_pc(current_pc.offset);
         self.call_stack.update(self.current_statement_idx, ctx)
     }
