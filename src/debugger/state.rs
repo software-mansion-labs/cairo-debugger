@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
+use cairo_lang_sierra::program::StatementIdx;
 use cairo_vm::vm::vm_core::VirtualMachine;
 use tracing::{debug, trace};
 
@@ -14,6 +15,7 @@ pub struct State {
     execution_stopped: bool,
     pub breakpoints: HashMap<SourcePath, HashSet<usize>>,
     pub current_pc: usize,
+    pub current_statement_idx: StatementIdx,
     pub call_stack: CallStack,
 }
 
@@ -24,13 +26,15 @@ impl State {
             execution_stopped: false,
             breakpoints: HashMap::default(),
             current_pc: 0,
+            current_statement_idx: StatementIdx(0),
             call_stack: CallStack::default(),
         }
     }
 
     pub fn update_state(&mut self, vm: &VirtualMachine, ctx: &Context) {
         self.current_pc = vm.get_pc().offset;
-        self.call_stack.update(self.current_pc, ctx)
+        self.current_statement_idx = ctx.statement_idx_for_pc(self.current_pc);
+        self.call_stack.update(self.current_statement_idx, ctx)
     }
 
     pub fn is_configuration_done(&self) -> bool {

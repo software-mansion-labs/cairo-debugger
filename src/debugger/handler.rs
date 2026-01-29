@@ -154,7 +154,7 @@ pub fn handle_request(
             .into())
         }
         Command::StackTrace(_) => {
-            let stack_frames = state.call_stack.get_frames(state.current_pc, ctx);
+            let stack_frames = state.call_stack.get_frames(state.current_statement_idx, ctx);
             let total_frames = Some(stack_frames.len() as i64);
             Ok(ResponseBody::StackTrace(StackTraceResponse { stack_frames, total_frames }).into())
         }
