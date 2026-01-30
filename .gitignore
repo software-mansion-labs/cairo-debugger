@@ -1,3 +1,4 @@
 target/
 .idea/
 .spr.yml
+Cargo.lock
