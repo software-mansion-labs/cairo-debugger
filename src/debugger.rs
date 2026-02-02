@@ -90,13 +90,7 @@ impl CairoDebugger {
     }
 
     fn maybe_handle_breakpoint_hit(&mut self) -> Result<()> {
-        if self
-            .state
-            .breakpoints
-            .values()
-            .flatten()
-            .any(|statement_idx| *statement_idx == self.state.current_statement_idx)
-        {
+        if self.state.was_breakpoint_hit(&self.ctx) {
             self.state.stop_execution();
             self.connection.send_event(Event::Stopped(StoppedEventBody {
                 reason: StoppedEventReason::Breakpoint,
