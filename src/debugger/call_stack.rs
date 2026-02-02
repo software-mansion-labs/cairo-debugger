@@ -10,15 +10,44 @@ use crate::debugger::context::Context;
 
 #[derive(Default)]
 pub struct CallStack {
+    /// Stack of call frames. Does ***not*** contain a current function frame.
     call_frames: Vec<StackFrame>,
+
+    /// Modification that should be applied to the stack when a new sierra statement is reached.
+    ///
+    /// This field is there to ensure that a correct stack trace is returned when a current
+    /// statement maps to a function call or a return statement.
+    /// The stack should be modified ***after*** such a statement is executed.
+    action_on_new_statement: Option<Action>,
+}
+
+enum Action {
+    Push(Box<StackFrame>),
+    Pop,
 }
 
 impl CallStack {
     pub fn update(&mut self, statement_idx: StatementIdx, ctx: &Context) {
+        // We can be sure that the `statement_idx` is different from the one which was the arg when
+        // `action_on_new_statement` was set.
+        // The reason is that both function call and return in sierra compile to one CASM instruction each.
+        // https://github.com/starkware-libs/cairo/blob/20eca60c88a35f7da13f573b2fc68818506703a9/crates/cairo-lang-sierra-to-casm/src/invocations/function_call.rs#L46
+        // https://github.com/starkware-libs/cairo/blob/d52acf845fc234f1746f814de7c64b535563d479/crates/cairo-lang-sierra-to-casm/src/compiler.rs#L533
+        match self.action_on_new_statement.take() {
+            Some(Action::Push(frame)) => {
+                self.call_frames.push(*frame);
+            }
+            Some(Action::Pop) => {
+                self.call_frames.pop();
+            }
+            None => {}
+        }
+
         if ctx.is_function_call_statement(statement_idx) {
-            self.call_frames.push(build_stack_frame(ctx, statement_idx));
+            self.action_on_new_statement =
+                Some(Action::Push(Box::new(build_stack_frame(ctx, statement_idx))));
         } else if ctx.is_return_statement(statement_idx) {
-            self.call_frames.pop();
+            self.action_on_new_statement = Some(Action::Pop);
         }
     }
 
