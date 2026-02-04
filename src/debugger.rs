@@ -18,6 +18,12 @@ mod handler;
 mod state;
 mod vm;
 
+/// According to [object references](https://microsoft.github.io/debug-adapter-protocol/overview#lifetime-of-objects-references).
+const MAX_OBJECT_REFERENCE: i64 = (1 << 31) - 1;
+
+/// According to [object references](https://microsoft.github.io/debug-adapter-protocol/overview#lifetime-of-objects-references).
+const MIN_OBJECT_REFERENCE: i64 = 1;
+
 pub struct CairoDebugger {
     connection: Connection,
     ctx: Context,
@@ -94,7 +100,7 @@ impl CairoDebugger {
             self.state.stop_execution();
             self.connection.send_event(Event::Stopped(StoppedEventBody {
                 reason: StoppedEventReason::Breakpoint,
-                thread_id: Some(0),
+                thread_id: Some(MAX_OBJECT_REFERENCE),
                 all_threads_stopped: Some(true),
                 // Breakpoint IDs are not set in `SetBreakpointsResponse`, hence we set them to `None` also here.
                 // This would matter if we supported multiple breakpoints per line, but currently we don't.
