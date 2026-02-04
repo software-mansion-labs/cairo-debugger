@@ -94,8 +94,8 @@ impl CairoDebugger {
             .state
             .breakpoints
             .values()
-            .flat_map(|pcs| pcs.iter())
-            .any(|pc| *pc == self.state.current_pc)
+            .flatten()
+            .any(|statement_idx| *statement_idx == self.state.current_statement_idx)
         {
             self.state.stop_execution();
             self.connection.send_event(Event::Stopped(StoppedEventBody {

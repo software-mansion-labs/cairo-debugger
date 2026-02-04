@@ -13,8 +13,7 @@ type SourcePath = String;
 pub struct State {
     configuration_done: bool,
     execution_stopped: bool,
-    pub breakpoints: HashMap<SourcePath, HashSet<usize>>,
-    pub current_pc: usize,
+    pub breakpoints: HashMap<SourcePath, HashSet<StatementIdx>>,
     pub current_statement_idx: StatementIdx,
     pub call_stack: CallStack,
 }
@@ -25,15 +24,15 @@ impl State {
             configuration_done: false,
             execution_stopped: false,
             breakpoints: HashMap::default(),
-            current_pc: 0,
             current_statement_idx: StatementIdx(0),
             call_stack: CallStack::default(),
         }
     }
 
     pub fn update_state(&mut self, vm: &VirtualMachine, ctx: &Context) {
-        self.current_pc = vm.get_pc().offset;
-        self.current_statement_idx = ctx.statement_idx_for_pc(self.current_pc);
+        let current_pc = vm.get_pc();
+
+        self.current_statement_idx = ctx.statement_idx_for_pc(current_pc.offset);
         self.call_stack.update(self.current_statement_idx, ctx)
     }
 
@@ -66,11 +65,14 @@ impl State {
         line: Line,
         ctx: &Context,
     ) -> bool {
-        let pc = ctx.get_pc_for_line(Path::new(&source), line);
+        let indexes = ctx.statement_idxs_for_breakpoint(Path::new(&source), line);
 
-        if let Some(pc) = pc {
-            debug!("Setting breakpoint for file: {:?}, line: {:?}", source, line);
-            self.breakpoints.entry(source).or_default().insert(pc);
+        if let Some(indexes) = indexes {
+            debug!(
+                "Setting breakpoint for file: {:?}, line: {:?}, idxs: {:?}",
+                source, line, indexes
+            );
+            self.breakpoints.entry(source).or_default().extend(indexes);
 
             return true;
         }
