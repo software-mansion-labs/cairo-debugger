@@ -86,6 +86,7 @@ impl Context {
         )
     }
 
+    /// Return code location for the current statement, not including inlined code locations.
     pub fn code_location_for_statement_idx(
         &self,
         statement_idx: StatementIdx,
@@ -96,14 +97,22 @@ impl Context {
             .and_then(|locations| locations.first().cloned())
     }
 
-    pub fn function_name_for_statement_idx(
+    /// Return code locations for the current statement, including inlined code locations.
+    /// The first element is not inlined.
+    pub fn code_locations_for_statement_idx(
         &self,
         statement_idx: StatementIdx,
-    ) -> Option<FunctionName> {
-        self.function_names
-            .statements_functions
-            .get(&statement_idx)
-            .and_then(|locations| locations.first().cloned())
+    ) -> Option<&Vec<CodeLocation>> {
+        self.code_locations.statements_code_locations.get(&statement_idx)
+    }
+
+    /// Return function names for the current statement, including inlined function names.
+    /// The first element is not inlined.
+    pub fn function_names_for_statement_idx(
+        &self,
+        statement_idx: StatementIdx,
+    ) -> Option<&Vec<FunctionName>> {
+        self.function_names.statements_functions.get(&statement_idx)
     }
 
     pub fn statement_idxs_for_breakpoint(

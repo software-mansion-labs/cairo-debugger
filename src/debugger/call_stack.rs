@@ -1,7 +1,8 @@
 use std::iter::once;
 use std::path::Path;
 
-use cairo_annotations::annotations::coverage::CodeLocation;
+use cairo_annotations::annotations::coverage::{CodeLocation, SourceFileFullPath};
+use cairo_annotations::annotations::profiler::FunctionName;
 use cairo_lang_sierra::program::StatementIdx;
 use dap::types::{Scope, ScopePresentationhint, StackFrame, Variable};
 use dap::types::{Source, StackFramePresentationhint};
@@ -64,8 +65,8 @@ impl CallStack {
             .map(|(call_statement_idx, _)| call_statement_idx)
             .cloned()
             .chain(once(statement_idx))
-            .map(|statement_idx| self.build_stack_frame(ctx, statement_idx))
             .rev()
+            .flat_map(|statement_idx| self.build_stack_frames(ctx, statement_idx))
             .collect()
     }
 
@@ -92,19 +93,34 @@ impl CallStack {
         vec![]
     }
 
-    fn build_stack_frame(&self, ctx: &Context, statement_idx: StatementIdx) -> StackFrame {
-        let id = MIN_OBJECT_REFERENCE + 2 * self.call_ids.len() as i64;
-        let Some(CodeLocation(source_file, code_span, _)) =
-            ctx.code_location_for_statement_idx(statement_idx)
-        else {
-            return unknown_frame();
+    /// Builds a vector of stack frames, ordered from the most nested (innermost) to the least nested (outermost) element.
+    fn build_stack_frames(&self, ctx: &Context, statement_idx: StatementIdx) -> Vec<StackFrame> {
+        let Some(code_locations) = ctx.code_locations_for_statement_idx(statement_idx) else {
+            return vec![unknown_frame()];
         };
 
-        let file_path = Path::new(&source_file.0);
-        let name = ctx
-            .function_name_for_statement_idx(statement_idx)
-            .map(|name| name.0)
-            .unwrap_or("test".to_string());
+        let default_function_names = vec![FunctionName("test".to_string())];
+        let function_names =
+            ctx.function_names_for_statement_idx(statement_idx).unwrap_or(&default_function_names);
+
+        code_locations
+            .iter()
+            .zip(function_names)
+            .map(|(code_location, function_name)| {
+                self.build_stack_frame(code_location, function_name, ctx)
+            })
+            .collect()
+    }
+
+    fn build_stack_frame(
+        &self,
+        CodeLocation(SourceFileFullPath(source_file), code_span, _): &CodeLocation,
+        FunctionName(function_name): &FunctionName,
+        ctx: &Context,
+    ) -> StackFrame {
+        let id = MIN_OBJECT_REFERENCE + 2 * self.call_ids.len() as i64;
+        let file_path = Path::new(&source_file);
+        let name = function_name.clone();
 
         let is_user_code = file_path.starts_with(&ctx.root_path);
         let presentation_hint = Some(if is_user_code {
@@ -121,7 +137,11 @@ impl CallStack {
         StackFrame {
             id,
             name,
-            source: Some(Source { name: None, path: Some(source_file.0), ..Default::default() }),
+            source: Some(Source {
+                name: None,
+                path: Some(source_file.clone()),
+                ..Default::default()
+            }),
             line,
             column,
             presentation_hint,
