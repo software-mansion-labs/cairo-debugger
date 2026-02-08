@@ -10,8 +10,9 @@ use crate::debugger::context::Context;
 
 #[derive(Default)]
 pub struct CallStack {
-    /// Stack of call frames. Does ***not*** contain a current function frame.
-    call_frames: Vec<StackFrame>,
+    /// Stack of sierra ids.
+    /// Does ***not*** contain a current function id.
+    call_ids: Vec<StatementIdx>,
 
     /// Modification that should be applied to the stack when a new sierra statement is reached.
     ///
@@ -22,7 +23,7 @@ pub struct CallStack {
 }
 
 enum Action {
-    Push(Box<StackFrame>),
+    Push(StatementIdx),
     Pop,
 }
 
@@ -34,27 +35,31 @@ impl CallStack {
         // https://github.com/starkware-libs/cairo/blob/20eca60c88a35f7da13f573b2fc68818506703a9/crates/cairo-lang-sierra-to-casm/src/invocations/function_call.rs#L46
         // https://github.com/starkware-libs/cairo/blob/d52acf845fc234f1746f814de7c64b535563d479/crates/cairo-lang-sierra-to-casm/src/compiler.rs#L533
         match self.action_on_new_statement.take() {
-            Some(Action::Push(frame)) => {
-                self.call_frames.push(*frame);
+            Some(Action::Push(statement_idx)) => {
+                self.call_ids.push(statement_idx);
             }
             Some(Action::Pop) => {
-                self.call_frames.pop();
+                self.call_ids.pop();
             }
             None => {}
         }
 
         if ctx.is_function_call_statement(statement_idx) {
-            self.action_on_new_statement =
-                Some(Action::Push(Box::new(build_stack_frame(ctx, statement_idx))));
+            self.action_on_new_statement = Some(Action::Push(statement_idx));
         } else if ctx.is_return_statement(statement_idx) {
             self.action_on_new_statement = Some(Action::Pop);
         }
     }
 
     pub fn get_frames(&self, statement_idx: StatementIdx, ctx: &Context) -> Vec<StackFrame> {
-        let current_frame = build_stack_frame(ctx, statement_idx);
         // DAP expects frames to start from the most nested element.
-        self.call_frames.iter().cloned().chain(once(current_frame)).rev().collect()
+        self.call_ids
+            .iter()
+            .cloned()
+            .chain(once(statement_idx))
+            .map(|statement_idx| build_stack_frame(ctx, statement_idx))
+            .rev()
+            .collect()
     }
 }
 
