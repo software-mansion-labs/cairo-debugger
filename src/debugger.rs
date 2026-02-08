@@ -9,7 +9,8 @@ use dap::types::StoppedEventReason;
 use tracing::error;
 
 use crate::connection::Connection;
-use crate::debugger::context::{CasmDebugInfo, Context};
+use crate::debugger::context::{CasmDebugInfo, Context, Line};
+use crate::debugger::handler::StepAction;
 use crate::debugger::state::State;
 
 mod call_stack;
@@ -56,7 +57,9 @@ impl CairoDebugger {
 
     fn sync_with_vm(&mut self, vm: &VirtualMachine) -> Result<()> {
         self.state.update_state(vm, &self.ctx);
+
         self.maybe_handle_breakpoint_hit()?;
+        self.maybe_handle_step_action()?;
 
         while let Some(request) = self.connection.try_next_request()? {
             self.process_request(request)?;
@@ -95,24 +98,50 @@ impl CairoDebugger {
         Ok(())
     }
 
-    fn maybe_handle_breakpoint_hit(&mut self) -> Result<()> {
-        if self.state.was_breakpoint_hit(&self.ctx) {
-            self.state.stop_execution();
-            self.connection.send_event(Event::Stopped(StoppedEventBody {
-                reason: StoppedEventReason::Breakpoint,
-                thread_id: Some(MAX_OBJECT_REFERENCE),
-                all_threads_stopped: Some(true),
-                // Breakpoint IDs are not set in `SetBreakpointsResponse`, hence we set them to `None` also here.
-                // This would matter if we supported multiple breakpoints per line, but currently we don't.
-                hit_breakpoint_ids: None,
-                description: None,
-                preserve_focus_hint: None,
-                text: None,
-            }))?;
-            self.process_until_resume()?;
+    fn maybe_handle_step_action(&mut self) -> Result<()> {
+        let current_line =
+            Line::create_from_statement_idx(self.state.current_statement_idx, &self.ctx);
+
+        let stop = match &self.state.step_action {
+            Some(StepAction::StepIn { prev_line }) if *prev_line != current_line => true,
+            Some(StepAction::Next { prev_line, depth })
+                if *depth >= self.state.call_stack.depth() && *prev_line != current_line =>
+            {
+                true
+            }
+            _ => false,
+        };
+
+        if stop {
+            self.state.step_action = None;
+            self.pause_and_process_requests(StoppedEventReason::Step)?;
         }
 
         Ok(())
+    }
+
+    fn maybe_handle_breakpoint_hit(&mut self) -> Result<()> {
+        if self.state.was_breakpoint_hit(&self.ctx) {
+            self.pause_and_process_requests(StoppedEventReason::Breakpoint)?;
+        }
+
+        Ok(())
+    }
+
+    fn pause_and_process_requests(&mut self, reason: StoppedEventReason) -> Result<()> {
+        self.state.stop_execution();
+        self.connection.send_event(Event::Stopped(StoppedEventBody {
+            reason,
+            thread_id: Some(MAX_OBJECT_REFERENCE),
+            all_threads_stopped: Some(true),
+            // Breakpoint IDs are not set in `SetBreakpointsResponse`, hence we set them to `None` also here.
+            // This would matter if we supported multiple breakpoints per line, but currently we don't.
+            hit_breakpoint_ids: None,
+            description: None,
+            preserve_focus_hint: None,
+            text: None,
+        }))?;
+        self.process_until_resume()
     }
 }
 

@@ -10,6 +10,7 @@ use tracing::{debug, trace};
 
 use crate::debugger::call_stack::CallStack;
 use crate::debugger::context::{Context, Line};
+use crate::debugger::handler::StepAction;
 
 type SourcePath = String;
 
@@ -20,6 +21,7 @@ pub struct State {
     pub current_statement_idx: StatementIdx,
     pub call_stack: CallStack,
     last_breakpoint_hit: Option<BreakpointHit>,
+    pub step_action: Option<StepAction>,
 }
 
 impl State {
@@ -31,6 +33,7 @@ impl State {
             current_statement_idx: StatementIdx(0),
             call_stack: CallStack::default(),
             last_breakpoint_hit: None,
+            step_action: None,
         }
     }
 

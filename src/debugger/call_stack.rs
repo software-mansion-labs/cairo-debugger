@@ -34,6 +34,9 @@ enum Action {
 }
 
 impl CallStack {
+    pub fn depth(&self) -> usize {
+        self.call_ids.len()
+    }
     pub fn update(&mut self, statement_idx: StatementIdx, ctx: &Context) {
         // We can be sure that the `statement_idx` is different from the one which was the arg when
         // `action_on_new_statement` was set.
