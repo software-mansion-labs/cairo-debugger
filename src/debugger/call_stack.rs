@@ -11,13 +11,13 @@ use crate::debugger::context::Context;
 
 #[derive(Default)]
 pub struct CallStack {
-    /// Stack of call frames and values of variables in these frames.
+    /// Stack of indexes of sierra statements that are function calls and values of variables in frames corresponding to these functions.
     /// Does ***not*** contain a current function frame.
     ///
     /// [Object references](https://microsoft.github.io/debug-adapter-protocol/overview#lifetime-of-objects-references):
     /// object reference for each stack frame is equal to its `1 + 2 * index` where `index` is its
     /// position in this vector. For variables, it is `2 + 2 * index`.
-    call_frames: Vec<(StackFrame, FunctionVariables)>,
+    call_ids: Vec<(StatementIdx, FunctionVariables)>,
 
     /// Modification that should be applied to the stack when a new sierra statement is reached.
     ///
@@ -28,7 +28,7 @@ pub struct CallStack {
 }
 
 enum Action {
-    Push(Box<StackFrame>),
+    Push(StatementIdx),
     Pop,
 }
 
@@ -40,32 +40,31 @@ impl CallStack {
         // https://github.com/starkware-libs/cairo/blob/20eca60c88a35f7da13f573b2fc68818506703a9/crates/cairo-lang-sierra-to-casm/src/invocations/function_call.rs#L46
         // https://github.com/starkware-libs/cairo/blob/d52acf845fc234f1746f814de7c64b535563d479/crates/cairo-lang-sierra-to-casm/src/compiler.rs#L533
         match self.action_on_new_statement.take() {
-            Some(Action::Push(frame)) => {
+            Some(Action::Push(statement)) => {
                 // TODO(#16)
-                self.call_frames.push((*frame, FunctionVariables {}));
+                self.call_ids.push((statement, FunctionVariables {}));
             }
             Some(Action::Pop) => {
-                self.call_frames.pop();
+                self.call_ids.pop();
             }
             None => {}
         }
 
         if ctx.is_function_call_statement(statement_idx) {
-            self.action_on_new_statement =
-                Some(Action::Push(Box::new(self.build_stack_frame(ctx, statement_idx))));
+            self.action_on_new_statement = Some(Action::Push(statement_idx));
         } else if ctx.is_return_statement(statement_idx) {
             self.action_on_new_statement = Some(Action::Pop);
         }
     }
 
     pub fn get_frames(&self, statement_idx: StatementIdx, ctx: &Context) -> Vec<StackFrame> {
-        let current_frame = self.build_stack_frame(ctx, statement_idx);
         // DAP expects frames to start from the most nested element.
-        self.call_frames
+        self.call_ids
             .iter()
-            .map(|(stack_frame, _)| stack_frame)
+            .map(|(call_statement_idx, _)| call_statement_idx)
             .cloned()
-            .chain(once(current_frame))
+            .chain(once(statement_idx))
+            .map(|statement_idx| self.build_stack_frame(ctx, statement_idx))
             .rev()
             .collect()
     }
@@ -82,19 +81,19 @@ impl CallStack {
 
     pub fn get_variables(&self, variables_reference: i64) -> Vec<Variable> {
         let index = variables_reference / 2 - 1;
-        let &FunctionVariables {} = if index == self.call_frames.len() as i64 {
+        let &FunctionVariables {} = if index == self.call_ids.len() as i64 {
             // TODO(#16)
             //  Build them on demand.
             &FunctionVariables {}
         } else {
-            &self.call_frames[index as usize].1
+            &self.call_ids[index as usize].1
         };
 
         vec![]
     }
 
     fn build_stack_frame(&self, ctx: &Context, statement_idx: StatementIdx) -> StackFrame {
-        let id = MIN_OBJECT_REFERENCE + 2 * self.call_frames.len() as i64;
+        let id = MIN_OBJECT_REFERENCE + 2 * self.call_ids.len() as i64;
 
         match ctx.code_location_for_statement_idx(statement_idx) {
             Some(CodeLocation(source_file, code_span, _)) => {
