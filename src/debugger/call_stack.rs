@@ -64,47 +64,48 @@ impl CallStack {
 }
 
 fn build_stack_frame(ctx: &Context, statement_idx: StatementIdx) -> StackFrame {
-    match ctx.code_location_for_statement_idx(statement_idx) {
-        Some(CodeLocation(source_file, code_span, _)) => {
-            let file_path = Path::new(&source_file.0);
-            let name = ctx
-                .function_name_for_statement_idx(statement_idx)
-                .map(|name| name.0)
-                .unwrap_or("test".to_string());
+    let Some(CodeLocation(source_file, code_span, _)) =
+        ctx.code_location_for_statement_idx(statement_idx)
+    else {
+        return unknown_frame();
+    };
 
-            let is_user_code = file_path.starts_with(&ctx.root_path);
-            let presentation_hint = Some(if is_user_code {
-                StackFramePresentationhint::Normal
-            } else {
-                StackFramePresentationhint::Subtle
-            });
+    let file_path = Path::new(&source_file.0);
+    let name = ctx
+        .function_name_for_statement_idx(statement_idx)
+        .map(|name| name.0)
+        .unwrap_or("test".to_string());
 
-            // Annotations from debug info are 0-indexed.
-            // UI expects 1-indexed, hence +1 below.
-            let line = (code_span.start.line.0 + 1) as i64;
-            let column = (code_span.start.col.0 + 1) as i64;
+    let is_user_code = file_path.starts_with(&ctx.root_path);
+    let presentation_hint = Some(if is_user_code {
+        StackFramePresentationhint::Normal
+    } else {
+        StackFramePresentationhint::Subtle
+    });
 
-            StackFrame {
-                id: 1,
-                name,
-                source: Some(Source {
-                    name: None,
-                    path: Some(source_file.0),
-                    ..Default::default()
-                }),
-                line,
-                column,
-                presentation_hint,
-                ..Default::default()
-            }
-        }
-        None => StackFrame {
-            id: 1,
-            name: "Unknown".to_string(),
-            line: 1,
-            column: 1,
-            presentation_hint: Some(StackFramePresentationhint::Subtle),
-            ..Default::default()
-        },
+    // Annotations from debug info are 0-indexed.
+    // UI expects 1-indexed, hence +1 below.
+    let line = (code_span.start.line.0 + 1) as i64;
+    let column = (code_span.start.col.0 + 1) as i64;
+
+    StackFrame {
+        id: 1,
+        name,
+        source: Some(Source { name: None, path: Some(source_file.0), ..Default::default() }),
+        line,
+        column,
+        presentation_hint,
+        ..Default::default()
+    }
+}
+
+fn unknown_frame() -> StackFrame {
+    StackFrame {
+        id: 1,
+        name: "Unknown".to_string(),
+        line: 1,
+        column: 1,
+        presentation_hint: Some(StackFramePresentationhint::Subtle),
+        ..Default::default()
     }
 }
