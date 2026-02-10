@@ -3,15 +3,21 @@ use std::path::Path;
 
 use cairo_annotations::annotations::coverage::CodeLocation;
 use cairo_lang_sierra::program::StatementIdx;
-use dap::types::StackFrame;
+use dap::types::{Scope, ScopePresentationhint, StackFrame, Variable};
 use dap::types::{Source, StackFramePresentationhint};
 
+use crate::debugger::MIN_OBJECT_REFERENCE;
 use crate::debugger::context::Context;
 
 #[derive(Default)]
 pub struct CallStack {
-    /// Stack of call frames. Does ***not*** contain a current function frame.
-    call_frames: Vec<StackFrame>,
+    /// Stack of call frames and values of variables in these frames.
+    /// Does ***not*** contain a current function frame.
+    ///
+    /// [Object references](https://microsoft.github.io/debug-adapter-protocol/overview#lifetime-of-objects-references):
+    /// object reference for each stack frame is equal to its `1 + 2 * index` where `index` is its
+    /// position in this vector. For variables, it is `2 + 2 * index`.
+    call_frames: Vec<(StackFrame, FunctionVariables)>,
 
     /// Modification that should be applied to the stack when a new sierra statement is reached.
     ///
@@ -35,7 +41,8 @@ impl CallStack {
         // https://github.com/starkware-libs/cairo/blob/d52acf845fc234f1746f814de7c64b535563d479/crates/cairo-lang-sierra-to-casm/src/compiler.rs#L533
         match self.action_on_new_statement.take() {
             Some(Action::Push(frame)) => {
-                self.call_frames.push(*frame);
+                // TODO(#16)
+                self.call_frames.push((*frame, FunctionVariables {}));
             }
             Some(Action::Pop) => {
                 self.call_frames.pop();
@@ -45,61 +52,95 @@ impl CallStack {
 
         if ctx.is_function_call_statement(statement_idx) {
             self.action_on_new_statement =
-                Some(Action::Push(Box::new(build_stack_frame(ctx, statement_idx))));
+                Some(Action::Push(Box::new(self.build_stack_frame(ctx, statement_idx))));
         } else if ctx.is_return_statement(statement_idx) {
             self.action_on_new_statement = Some(Action::Pop);
         }
     }
 
     pub fn get_frames(&self, statement_idx: StatementIdx, ctx: &Context) -> Vec<StackFrame> {
-        let current_frame = build_stack_frame(ctx, statement_idx);
+        let current_frame = self.build_stack_frame(ctx, statement_idx);
         // DAP expects frames to start from the most nested element.
-        self.call_frames.iter().cloned().chain(once(current_frame)).rev().collect()
+        self.call_frames
+            .iter()
+            .map(|(stack_frame, _)| stack_frame)
+            .cloned()
+            .chain(once(current_frame))
+            .rev()
+            .collect()
     }
-}
 
-fn build_stack_frame(ctx: &Context, statement_idx: StatementIdx) -> StackFrame {
-    match ctx.code_location_for_statement_idx(statement_idx) {
-        Some(CodeLocation(source_file, code_span, _)) => {
-            let file_path = Path::new(&source_file.0);
-            let name = ctx
-                .function_name_for_statement_idx(statement_idx)
-                .map(|name| name.0)
-                .unwrap_or("test".to_string());
-
-            let is_user_code = file_path.starts_with(&ctx.root_path);
-            let presentation_hint = Some(if is_user_code {
-                StackFramePresentationhint::Normal
-            } else {
-                StackFramePresentationhint::Subtle
-            });
-
-            // Annotations from debug info are 0-indexed.
-            // UI expects 1-indexed, hence +1 below.
-            let line = (code_span.start.line.0 + 1) as i64;
-            let column = (code_span.start.col.0 + 1) as i64;
-
-            StackFrame {
-                id: 1,
-                name,
-                source: Some(Source {
-                    name: None,
-                    path: Some(source_file.0),
-                    ..Default::default()
-                }),
-                line,
-                column,
-                presentation_hint,
-                ..Default::default()
-            }
-        }
-        None => StackFrame {
-            id: 1,
-            name: "Unknown".to_string(),
-            line: 1,
-            column: 1,
-            presentation_hint: Some(StackFramePresentationhint::Subtle),
+    pub fn get_scopes_for_frame(&self, frame_id: i64) -> Vec<Scope> {
+        let scope = Scope {
+            name: "Locals".to_string(),
+            variables_reference: frame_id + 1,
+            presentation_hint: Some(ScopePresentationhint::Locals),
             ..Default::default()
-        },
+        };
+        vec![scope]
+    }
+
+    pub fn get_variables(&self, variables_reference: i64) -> Vec<Variable> {
+        let index = variables_reference / 2 - 1;
+        let &FunctionVariables {} = if index == self.call_frames.len() as i64 {
+            // TODO(#16)
+            //  Build them on demand.
+            &FunctionVariables {}
+        } else {
+            &self.call_frames[index as usize].1
+        };
+
+        vec![]
+    }
+
+    fn build_stack_frame(&self, ctx: &Context, statement_idx: StatementIdx) -> StackFrame {
+        let id = MIN_OBJECT_REFERENCE + 2 * self.call_frames.len() as i64;
+
+        match ctx.code_location_for_statement_idx(statement_idx) {
+            Some(CodeLocation(source_file, code_span, _)) => {
+                let file_path = Path::new(&source_file.0);
+                let name = ctx
+                    .function_name_for_statement_idx(statement_idx)
+                    .map(|name| name.0)
+                    .unwrap_or("test".to_string());
+
+                let is_user_code = file_path.starts_with(&ctx.root_path);
+                let presentation_hint = Some(if is_user_code {
+                    StackFramePresentationhint::Normal
+                } else {
+                    StackFramePresentationhint::Subtle
+                });
+
+                // Annotations from debug info are 0-indexed.
+                // UI expects 1-indexed, hence +1 below.
+                let line = (code_span.start.line.0 + 1) as i64;
+                let column = (code_span.start.col.0 + 1) as i64;
+
+                StackFrame {
+                    id,
+                    name,
+                    source: Some(Source {
+                        name: None,
+                        path: Some(source_file.0),
+                        ..Default::default()
+                    }),
+                    line,
+                    column,
+                    presentation_hint,
+                    ..Default::default()
+                }
+            }
+            None => StackFrame {
+                id,
+                name: "Unknown".to_string(),
+                line: 1,
+                column: 1,
+                presentation_hint: Some(StackFramePresentationhint::Subtle),
+                ..Default::default()
+            },
+        }
     }
 }
+
+// TODO(#16)
+struct FunctionVariables {}

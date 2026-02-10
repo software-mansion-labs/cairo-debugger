@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 use dap::events::{Event, StoppedEventBody};
 use dap::prelude::{Command, Request, ResponseBody};
+use dap::requests::{ScopesArguments, VariablesArguments};
 use dap::responses::{
     ContinueResponse, EvaluateResponse, ScopesResponse, SetBreakpointsResponse,
     SetExceptionBreakpointsResponse, StackTraceResponse, ThreadsResponse, VariablesResponse,
@@ -8,6 +9,7 @@ use dap::responses::{
 use dap::types::{Breakpoint, Capabilities, StoppedEventReason, Thread};
 use tracing::{error, trace};
 
+use crate::debugger::MAX_OBJECT_REFERENCE;
 use crate::debugger::context::{Context, Line};
 use crate::debugger::state::State;
 
@@ -101,7 +103,7 @@ pub fn handle_request(
             Ok(HandlerResponse::from(ResponseBody::Pause).with_event(Event::Stopped(
                 StoppedEventBody {
                     reason: StoppedEventReason::Pause,
-                    thread_id: Some(0),
+                    thread_id: Some(MAX_OBJECT_REFERENCE),
                     description: None,
                     preserve_focus_hint: None,
                     text: None,
@@ -149,7 +151,7 @@ pub fn handle_request(
         Command::Threads => {
             Ok(ResponseBody::Threads(ThreadsResponse {
                 // Return a single thread.
-                threads: vec![Thread { id: 0, name: "".to_string() }],
+                threads: vec![Thread { id: MAX_OBJECT_REFERENCE, name: "".to_string() }],
             })
             .into())
         }
@@ -158,16 +160,13 @@ pub fn handle_request(
             let total_frames = Some(stack_frames.len() as i64);
             Ok(ResponseBody::StackTrace(StackTraceResponse { stack_frames, total_frames }).into())
         }
-        Command::Scopes(_) => {
-            // Return no scopes.
-            Ok(ResponseBody::Scopes(ScopesResponse { scopes: vec![] }).into())
+        Command::Scopes(ScopesArguments { frame_id }) => {
+            let scopes = state.call_stack.get_scopes_for_frame(*frame_id);
+            Ok(ResponseBody::Scopes(ScopesResponse { scopes }).into())
         }
-        Command::Variables(_) => {
-            Ok(ResponseBody::Variables(VariablesResponse {
-                // Return no variables.
-                variables: vec![],
-            })
-            .into())
+        Command::Variables(VariablesArguments { variables_reference, .. }) => {
+            let variables = state.call_stack.get_variables(*variables_reference);
+            Ok(ResponseBody::Variables(VariablesResponse { variables }).into())
         }
 
         Command::Next(_) => {
