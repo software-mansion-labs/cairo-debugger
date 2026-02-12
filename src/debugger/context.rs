@@ -46,6 +46,13 @@ impl Line {
     pub fn new(line: usize) -> Self {
         Self(line)
     }
+
+    pub fn create_from_statement_idx(statement_idx: StatementIdx, ctx: &Context) -> Self {
+        let CodeLocation(_, code_span, _) = ctx
+            .code_location_for_statement_idx(statement_idx)
+            .expect("statement was expected to have corresponding code location");
+        Self(code_span.start.line.0)
+    }
 }
 
 impl Context {

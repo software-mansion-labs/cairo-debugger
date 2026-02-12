@@ -1,6 +1,7 @@
 use anyhow::{Result, anyhow, bail};
 use dap::events::{Event, StoppedEventBody};
 use dap::prelude::{Command, Request, ResponseBody};
+use dap::requests::{NextArguments, StepInArguments};
 use dap::requests::{ScopesArguments, VariablesArguments};
 use dap::responses::{
     ContinueResponse, EvaluateResponse, ScopesResponse, SetBreakpointsResponse,
@@ -22,6 +23,11 @@ impl From<ResponseBody> for HandlerResponse {
     fn from(response_body: ResponseBody) -> Self {
         Self { response_body, event: None }
     }
+}
+
+pub enum StepAction {
+    StepIn { prev_line: Line },
+    Next { depth: usize, prev_line: Line },
 }
 
 impl HandlerResponse {
@@ -169,11 +175,32 @@ pub fn handle_request(
             Ok(ResponseBody::Variables(VariablesResponse { variables }).into())
         }
 
-        Command::Next(_) => {
-            todo!()
+        // `vs-code` currently doesn't support choosing granularity, see: https://github.com/microsoft/vscode/issues/102236.
+        // We assume granularity of line.
+        Command::Next(NextArguments { .. }) => {
+            // To handle a "step over" action, we set the step action to `Next`.
+            // We record the current call stack depth. The debugger will resume execution
+            // and only stop when it reaches a new line at the same or a shallower call stack depth.
+            // This effectively "steps over" any function calls.
+            let line = Line::create_from_statement_idx(state.current_statement_idx, ctx);
+
+            state.step_action =
+                Some(StepAction::Next { depth: state.call_stack.depth(), prev_line: line });
+
+            state.resume_execution();
+            Ok(ResponseBody::Next.into())
         }
-        Command::StepIn(_) => {
-            todo!()
+        // `vs-code` currently doesn't support choosing granularity, see: https://github.com/microsoft/vscode/issues/102236.
+        // We assume granularity of line.
+        Command::StepIn(StepInArguments { .. }) => {
+            // To handle a "step in" action, we set the step action to `StepIn`.
+            // The debugger will resume execution and stop at the very next executable line,
+            // which might be inside a function call.
+            let line = Line::create_from_statement_idx(state.current_statement_idx, ctx);
+
+            state.step_action = Some(StepAction::StepIn { prev_line: line });
+            state.resume_execution();
+            Ok(ResponseBody::StepIn.into())
         }
         Command::StepOut(_) => {
             todo!()
