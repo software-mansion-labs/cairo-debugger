@@ -171,7 +171,8 @@ fn build_file_locations_map(
         });
 
     for (statement_idx, locations) in hittable_statements_code_locations {
-        for loc in locations {
+        // Take only the non-inlined location into the account - the rest of them are not hittable.
+        if let Some(loc) = locations.first() {
             let path_str = &loc.0.0;
             let path = PathBuf::from(path_str);
 
