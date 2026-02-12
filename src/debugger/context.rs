@@ -16,6 +16,9 @@ use cairo_lang_sierra::program::{Program, ProgramArtifact, Statement, StatementI
 use cairo_lang_sierra::program_registry::ProgramRegistry;
 use scarb_metadata::MetadataCommand;
 
+#[cfg(feature = "dev")]
+mod readable_sierra_ids;
+
 /// Struct that holds all the initial data needed for the debugger during execution.
 pub struct Context {
     pub root_path: PathBuf,
@@ -25,6 +28,8 @@ pub struct Context {
     files_data: HashMap<PathBuf, FileCodeLocationsData>,
     program: Program,
     sierra_program_registry: ProgramRegistry<CoreType, CoreLibfunc>,
+    #[cfg(feature = "dev")]
+    labels: HashMap<usize, String>,
 }
 
 pub struct CasmDebugInfo {
@@ -74,6 +79,9 @@ impl Context {
         let files_data = build_file_locations_map(&casm_debug_info, &code_locations);
 
         Ok(Self {
+            #[cfg(feature = "dev")]
+            labels: readable_sierra_ids::extract_labels(&program),
+
             root_path,
             code_locations,
             function_names,
@@ -148,6 +156,17 @@ impl Context {
 
     fn statement_idx_to_statement(&self, statement_idx: StatementIdx) -> &Statement {
         &self.program.statements[statement_idx.0]
+    }
+
+    #[cfg(feature = "dev")]
+    #[allow(unused)]
+    pub fn print_statement(&self, statement_idx: StatementIdx) {
+        let statement = self.statement_idx_to_statement(statement_idx);
+        let with_labels = readable_sierra_ids::replace_statement_id(statement.clone(), |idx| {
+            self.labels[&idx.0].clone()
+        });
+
+        eprintln!("{with_labels}")
     }
 }
 
