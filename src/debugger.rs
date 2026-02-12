@@ -109,6 +109,7 @@ impl CairoDebugger {
             {
                 true
             }
+            Some(StepAction::StepOut { depth }) if *depth > self.state.call_stack.depth() => true,
             _ => false,
         };
 

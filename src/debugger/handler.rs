@@ -28,6 +28,7 @@ impl From<ResponseBody> for HandlerResponse {
 pub enum StepAction {
     StepIn { prev_line: Line },
     Next { depth: usize, prev_line: Line },
+    StepOut { depth: usize },
 }
 
 impl HandlerResponse {
@@ -203,7 +204,16 @@ pub fn handle_request(
             Ok(ResponseBody::StepIn.into())
         }
         Command::StepOut(_) => {
-            todo!()
+            // To handle a "step out" action, we set the step action to `StepOut`.
+            // We record the current call stack depth. The debugger will resume execution
+            // and only stop when it reaches a line in a shallower call stack depth, which
+            // happens when the current function returns.
+            let depth = state.call_stack.depth();
+            if depth > 0 {
+                state.step_action = Some(StepAction::StepOut { depth });
+            }
+            state.resume_execution();
+            Ok(ResponseBody::StepOut.into())
         }
         Command::Source(_) => {
             todo!()
